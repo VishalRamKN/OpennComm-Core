@@ -118,32 +118,7 @@ Use `./run.sh` until this is fixed.
 ## Building and testing
 
     cmake -B build -G Ninja
-    cmake --build4 minutes ago
-run.sh
-Initial Commit
-4 minutes ago
-Repository files navigation
-README
-Code of conduct
-Contributing
-GPL-3.0 license
-Security
-￼
-￼
-OpennComm
-Assistive communication for people who cannot speak or move. A caregiver asks a question aloud; the patient answers with head movement, blinks, or morse code spelled with their eyelids. The answer is spoken back.
-
-Everything runs on the machine in front of you. No account, no network, no cloud service, no telemetry. Speech recognition, speech synthesis and answer generation are local models; the camera feed never leaves the process.
-
-Linux, x86_64. Qt6 + C.
-
-Not a medical device
-OpennComm has no regulatory clearance and no clinical validation, and a caregiver must be present whenever it is used. Read DISCLAIMER before deploying it to anyone.
-
-Status
-Early. See docs/PLAN.md for what is built and what is not.
-
- build
+    cmake --build build
     ctest --test-dir build --output-on-failure
 
 ## Layout
