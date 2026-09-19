@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=OpennComm
+GenericName=Assistive Communication
+Comment=Speak using head movement, blinks or morse code
+Exec=openncomm
+Icon=openncomm
+Categories=Utility;Accessibility;
+Keywords=AAC;accessibility;communication;speech;paralysis;
+Terminal=false

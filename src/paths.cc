@@ -1,0 +1,95 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later
+ * Copyright (C) 2026 OpennComm contributors
+ */
+#include "paths.h"
+
+#include <QCoreApplication>
+#include <QDir>
+#include <QFileInfo>
+#include <QStandardPaths>
+
+namespace {
+
+QString firstDirContaining(const QStringList &dirs, const QString &probe)
+{
+    for (const QString &d : dirs)
+        if (!d.isEmpty() && QFileInfo::exists(QDir(d).filePath(probe)))
+            return QDir(d).absolutePath();
+    return QString();
+}
+
+QStringList candidateModelDirs()
+{
+    const QString bin = QCoreApplication::applicationDirPath();
+    return {
+        qEnvironmentVariable("OPENNCOMM_MODELS"),
+        QDir(bin).filePath(QStringLiteral("../share/openncomm/models")), /* installed / AppImage */
+        paths::writableModelsDir(),                                      /* downloaded */
+        QDir(bin).filePath(QStringLiteral("../../models")),              /* build tree */
+        QStringLiteral("models"),                                        /* cwd, for dev */
+    };
+}
+
+} // namespace
+
+namespace paths {
+
+QString writableModelsDir()
+{
+    /* Deliberately not AppDataLocation. With the organisation and application
+     * both named OpennComm, Qt returns ~/.local/share/OpennComm/OpennComm --
+     * the name doubled. Build the XDG path directly so it is the one the
+     * documentation claims and the one a person would guess. */
+    const QString base = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation);
+    return QDir(base).filePath(QStringLiteral("openncomm/models"));
+}
+
+QString modelsDir()
+{
+    /* Probed on the face model because it is the one that is always present:
+     * it is small enough to ship inside the bundle, and without it there is no
+     * input at all. */
+    const QString found = firstDirContaining(candidateModelDirs(),
+                                             QStringLiteral("face_landmarker.task"));
+    return found.isEmpty() ? writableModelsDir() : found;
+}
+
+QStringList modelsDirs()
+{
+    QStringList dirs;
+    for (const QString &d : candidateModelDirs()) {
+        if (d.isEmpty() || !QDir(d).exists()) continue;
+        const QString abs = QDir(d).absolutePath();
+        if (!dirs.contains(abs)) dirs << abs;
+    }
+    return dirs;
+}
+
+QString model(const QString &filename)
+{
+    /* Large models may have been downloaded into XDG data while the face model
+     * still comes from the bundle, so each file is resolved independently. */
+    for (const QString &d : candidateModelDirs()) {
+        if (d.isEmpty()) continue;
+        const QString path = QDir(d).filePath(filename);
+        if (QFileInfo::exists(path)) return QFileInfo(path).absoluteFilePath();
+    }
+    return QDir(writableModelsDir()).filePath(filename);
+}
+
+QString piperBinary()
+{
+    const QString bin = QCoreApplication::applicationDirPath();
+    const QStringList candidates = {
+        qEnvironmentVariable("OPENNCOMM_PIPER"),
+        QDir(bin).filePath(QStringLiteral("../share/openncomm/piper/piper")),
+        QDir(bin).filePath(QStringLiteral("../../third_party/piper/piper")),
+        QStringLiteral("third_party/piper/piper"),
+    };
+    for (const QString &c : candidates)
+        if (!c.isEmpty() && QFileInfo(c).isExecutable())
+            return QFileInfo(c).absoluteFilePath();
+    return QString();
+}
+
+} // namespace paths

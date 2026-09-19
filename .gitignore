@@ -1,0 +1,13 @@
+build/
+models/
+*.o
+*.so
+*.a
+.cache/
+compile_commands.json
+third_party/mediapipe/lib/*.so
+third_party/llama.cpp/
+third_party/whisper.cpp/
+third_party/piper/
+models/voices/
+docs/PUBLISHING.md

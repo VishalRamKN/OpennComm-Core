@@ -1,0 +1,18 @@
+#!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# AppImage entry point.
+HERE="$(dirname "$(readlink -f "${0}")")"
+export LD_LIBRARY_PATH="$HERE/usr/lib:$HERE/usr/lib/openncomm:${LD_LIBRARY_PATH}"
+export QT_PLUGIN_PATH="$HERE/usr/plugins:${QT_PLUGIN_PATH}"
+
+# OpenCV links FlexiBLAS, which loads its actual BLAS backend with dlopen at
+# runtime from a compiled-in path. ldd cannot see that, so the bundler does not
+# copy it, and the application aborts with "Failed to load the BLAS fallback
+# library". Point FlexiBLAS at the backend we bundled ourselves.
+if [ -f "$HERE/usr/lib/flexiblas/libflexiblas_openblas-serial.so" ]; then
+  export FLEXIBLAS="$HERE/usr/lib/flexiblas/libflexiblas_openblas-serial.so"
+  export FLEXIBLAS_LIBRARY_PATH="$HERE/usr/lib/flexiblas"
+fi
+# MediaPipe logs a wall of TensorFlow noise on startup that buries real errors.
+exec "$HERE/usr/bin/openncomm" "$@" \
+  2> >(grep -vE "^(W|I)[0-9]{4} |^INFO: |Logging before InitGoogle" >&2)
