@@ -9,5 +9,7 @@ third_party/mediapipe/lib/*.so
 third_party/llama.cpp/
 third_party/whisper.cpp/
 third_party/piper/
+# The shared ggml staging prefix, built by scripts/fetch-deps.sh.
+third_party/prefix/
 models/voices/
 docs/PUBLISHING.md

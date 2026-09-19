@@ -1,6 +1,21 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 find_package(Qt6 6.4 REQUIRED COMPONENTS Widgets)
 
+# One ggml, shared by both runtimes. scripts/fetch-deps.sh builds llama.cpp's
+# copy, installs it into third_party/prefix, and builds whisper.cpp against it;
+# the reasoning is in that script. The headers must come from that prefix too:
+# whisper.cpp's own ggml/include is still in the source tree at the older
+# version, and compiling against 0.23 headers while linking 0.24 is precisely
+# the mismatch the shared build exists to remove.
+set(GGML_PREFIX ${CMAKE_SOURCE_DIR}/third_party/prefix)
+if(NOT EXISTS ${GGML_PREFIX}/lib/libggml.so)
+  message(FATAL_ERROR "shared ggml missing - run scripts/fetch-deps.sh")
+endif()
+add_library(ggml_c SHARED IMPORTED GLOBAL)
+set_target_properties(ggml_c PROPERTIES
+  IMPORTED_LOCATION ${GGML_PREFIX}/lib/libggml.so
+  INTERFACE_INCLUDE_DIRECTORIES ${GGML_PREFIX}/include)
+
 # llama.cpp is built by scripts/fetch-deps.sh into third_party/llama.cpp/build.
 set(LLAMA_DIR ${CMAKE_SOURCE_DIR}/third_party/llama.cpp)
 set(LLAMA_LIB ${LLAMA_DIR}/build/bin/libllama.so)
@@ -10,7 +25,9 @@ endif()
 add_library(llama_c SHARED IMPORTED GLOBAL)
 set_target_properties(llama_c PROPERTIES
   IMPORTED_LOCATION ${LLAMA_LIB}
-  INTERFACE_INCLUDE_DIRECTORIES "${LLAMA_DIR}/include;${LLAMA_DIR}/ggml/include")
+  INTERFACE_INCLUDE_DIRECTORIES ${LLAMA_DIR}/include
+  INTERFACE_LINK_LIBRARIES ggml_c)
+
 set(WHISPER_DIR ${CMAKE_SOURCE_DIR}/third_party/whisper.cpp)
 set(WHISPER_LIB ${WHISPER_DIR}/build/bin/libwhisper.so)
 if(NOT EXISTS ${WHISPER_LIB})
@@ -19,7 +36,8 @@ endif()
 add_library(whisper_c SHARED IMPORTED GLOBAL)
 set_target_properties(whisper_c PROPERTIES
   IMPORTED_LOCATION ${WHISPER_LIB}
-  INTERFACE_INCLUDE_DIRECTORIES "${WHISPER_DIR}/include;${WHISPER_DIR}/ggml/include")
+  INTERFACE_INCLUDE_DIRECTORIES ${WHISPER_DIR}/include
+  INTERFACE_LINK_LIBRARIES ggml_c)
 
 find_package(OpenCV REQUIRED COMPONENTS core videoio imgproc)
 

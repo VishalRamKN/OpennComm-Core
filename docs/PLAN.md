@@ -190,11 +190,26 @@ The fix is what AppImage practice says to do anyway — build inside a container
 running the **oldest** distribution to be supported, not the newest. Podman is
 available. Not done; `./run.sh` is the supported path meanwhile.
 
-**14. llama.cpp and whisper.cpp both install `libggml.so.0`, at different
-versions.** 0.24 and 0.23, one SONAME, two ABIs. Only one can be loaded into a
-process, so whichever loses is calling a library it was not built against. It
-works today, which is worse than failing: it is luck, not correctness. Fix by
-building both against one ggml before this ships to anyone.
+**14. llama.cpp and whisper.cpp both installed `libggml.so.0`, at different
+versions.** 0.24 and 0.23, one SONAME, two ABIs. The dynamic linker resolves a
+library once per SONAME per process, so whichever loaded first served both, and
+the loser was calling a library it was not built against. It worked, which is
+worse than failing: it was luck, not correctness.
+
+**Fixed.** `scripts/fetch-deps.sh` now builds llama.cpp's ggml, installs it into
+`third_party/prefix`, and builds whisper.cpp against it with
+`WHISPER_USE_SYSTEM_GGML=ON`. whisper.cpp 1.9.4 compiles clean against ggml 0.24.
+There is now one ggml on disk and one in the process; `--check` exercises both
+runtimes and passes.
+
+Two things worth keeping in mind. Separating the libraries into different
+directories would NOT have fixed this -- the loader keys its cache on SONAME,
+not on path, so an `$ORIGIN` rpath per runtime would have changed nothing. And
+the ordering in `fetch-deps.sh` is load-bearing: the prefix must exist before
+whisper.cpp is configured. A guard at the end of that script fails the build if
+a `libggml*.so` ever reappears under `third_party/whisper.cpp/build`, because
+the symptom of a regression here is not a build error, it is the wrong ABI at
+runtime.
 
 ## Invariants
 

@@ -79,20 +79,45 @@ fi
 mkdir -p models
 fetch models/face_landmarker.task "$MODEL_URL" "$MODEL_SHA" "face_landmarker.task"
 
+# One ggml, not two. llama.cpp and whisper.cpp each vendor their own copy and
+# each installs it as libggml.so.0 -- at 0.24 and 0.23 respectively. One SONAME,
+# two ABIs: the dynamic linker resolves a library once per SONAME per process,
+# so whichever loads first would serve both, and the loser would be calling a
+# library it was not built against. It happened to work, which is worse than
+# failing, because it was luck rather than correctness.
+#
+# So llama.cpp's ggml is built and installed here, and whisper.cpp is then built
+# against it with WHISPER_USE_SYSTEM_GGML. This ordering is load-bearing: the
+# prefix must exist before whisper.cpp is configured.
+GGML_PREFIX="$PWD/third_party/prefix"
+
 LLAMA_TAG=v0.4.1
 LLAMA_SHA=b29c606e28a01b1bc8c1351026a0fa6e616bf6c4
-if [ ! -f third_party/llama.cpp/build/bin/libllama.so ]; then
+if [ ! -f third_party/llama.cpp/build/bin/libllama.so ] \
+   || [ ! -f "$GGML_PREFIX/lib/cmake/ggml/ggml-config.cmake" ]; then
   echo "==> building llama.cpp ${LLAMA_TAG} (a few minutes)"
   [ -d third_party/llama.cpp ] || git clone -q --depth 1 --branch "$LLAMA_TAG" \
       https://github.com/ggml-org/llama.cpp.git third_party/llama.cpp
   pin_check third_party/llama.cpp "$LLAMA_SHA" "$LLAMA_TAG"
+  # CMAKE_INSTALL_LIBDIR is pinned to `lib` so the staging prefix is identical
+  # on Fedora (which would default to lib64) and Debian (lib/x86_64-linux-gnu);
+  # the packaging containers build both. Do NOT pass -DGGML_LIB_INSTALL_DIR:
+  # it is declared `CACHE PATH`, and a relative PATH given on the command line
+  # is resolved against the working directory, silently becoming $PWD/lib.
+  # Letting ggml derive it from CMAKE_INSTALL_LIBDIR keeps it relative.
   cmake -S third_party/llama.cpp -B third_party/llama.cpp/build -G Ninja \
         -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON \
+        -DCMAKE_INSTALL_PREFIX="$GGML_PREFIX" -DCMAKE_INSTALL_LIBDIR=lib \
         -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_EXAMPLES=OFF \
         -DLLAMA_BUILD_SERVER=OFF -DLLAMA_BUILD_TOOLS=OFF -DLLAMA_CURL=OFF >/dev/null
   # Only the library: llama.cpp's own CLI target fails to configure build-info.h
   # in this layout, and we do not need it.
   cmake --build third_party/llama.cpp/build --target llama
+  # The ggml subdirectory only. A full `cmake --install` of llama.cpp fails
+  # looking for the CLI binary we deliberately did not build, and installing
+  # only --component ggml omits the CMake package files whisper.cpp needs to
+  # find it.
+  cmake --install third_party/llama.cpp/build/ggml >/dev/null
 fi
 
 # Apache-2.0 weights. See THIRD_PARTY.md for why that rules out Llama and Gemma.
@@ -109,8 +134,10 @@ if [ ! -f third_party/whisper.cpp/build/bin/libwhisper.so ]; then
   [ -d third_party/whisper.cpp ] || git clone -q --depth 1 --branch "$WHISPER_TAG" \
       https://github.com/ggml-org/whisper.cpp.git third_party/whisper.cpp
   pin_check third_party/whisper.cpp "$WHISPER_SHA" "$WHISPER_TAG"
+  # Against llama.cpp's ggml, not its own vendored copy. See the note above.
   cmake -S third_party/whisper.cpp -B third_party/whisper.cpp/build -G Ninja \
         -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON \
+        -DWHISPER_USE_SYSTEM_GGML=ON -Dggml_DIR="$GGML_PREFIX/lib/cmake/ggml" \
         -DWHISPER_BUILD_TESTS=OFF -DWHISPER_BUILD_EXAMPLES=OFF \
         -DWHISPER_BUILD_SERVER=OFF >/dev/null
   cmake --build third_party/whisper.cpp/build --target whisper
@@ -162,6 +189,18 @@ for spec in "amy/medium en_US-amy-medium" "joe/medium en_US-joe-medium"; do
     fetch "$VOICE_DIR/$f" "$VOICE_ROOT/$1/$f" "$(voice_sha "$f")" "voice $f"
   done
 done
+
+# Guard the invariant rather than trusting that it held. A whisper.cpp bump that
+# quietly stopped honouring WHISPER_USE_SYSTEM_GGML would put a second
+# libggml.so.0 back on the library path, and the symptom would not be a build
+# failure -- it would be one of the two runtimes calling the wrong ABI at
+# runtime. Fail here instead.
+stray=$(find third_party/whisper.cpp/build -name 'libggml*.so*' 2>/dev/null | head -5)
+if [ -n "$stray" ]; then
+  echo "whisper.cpp built its own ggml -- that is the SONAME collision returning:" >&2
+  echo "$stray" >&2
+  exit 1
+fi
 
 echo "==> deps ready, checksums verified"
 ls -la third_party/mediapipe/lib/libmediapipe.so models/*.task models/*.gguf models/*.bin
