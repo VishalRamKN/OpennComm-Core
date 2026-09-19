@@ -1,0 +1,95 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# Deliberately not a full build. Building the application needs Qt 6.4, OpenCV,
+# a compiled llama.cpp and whisper.cpp, and scripts/fetch-deps.sh downloads
+# about 1.2 GB of model weights -- none of which belongs on a runner for every
+# push. What is here instead is everything that can be checked in seconds and
+# that would otherwise only be caught by a person.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  core:
+    name: core tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build tools
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq cmake ninja-build
+
+      # core/ is pure C with no I/O and no dependency beyond libm, and it holds
+      # every rule that decides what a patient is understood to have said. It
+      # configures standalone precisely so this job needs no camera, no model,
+      # no window and no Qt. If this step ever starts needing one of those, the
+      # change belongs somewhere other than core/.
+      - name: Configure, build and test core standalone
+        run: |
+          cmake -S core -B build-core -G Ninja
+          cmake --build build-core
+          ctest --test-dir build-core --output-on-failure
+
+  scripts:
+    name: shell scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install shellcheck
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
+
+      - name: Parse every script
+        run: |
+          for f in scripts/*.sh run.sh packaging/AppRun; do
+            echo "== $f"
+            bash -n "$f"
+          done
+
+      # Advisory: these scripts do deliberate things shellcheck dislikes, so a
+      # finding is a prompt to look rather than a failure. Errors still fail.
+      - name: shellcheck
+        run: shellcheck -S error scripts/*.sh run.sh || exit 1
+
+      - name: shellcheck (warnings, advisory)
+        continue-on-error: true
+        run: shellcheck -S warning scripts/*.sh run.sh
+
+  metadata:
+    name: desktop and AppStream metadata
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install validators
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq appstream desktop-file-utils
+
+      # An AppStream id has to match the .desktop file that launches it, and a
+      # mismatch fails no build: it produces an application that installs fine
+      # and appears in GNOME Software with no icon and no description.
+      - name: Validate metainfo and desktop entry
+        run: |
+          appstreamcli validate packaging/*.metainfo.xml
+          desktop-file-validate packaging/*.desktop
+
+      # The metainfo <releases> version is what software centres display, and
+      # it is not the version the package is built with. They drift silently.
+      - name: VERSION agrees with the metainfo release
+        run: |
+          version=$(tr -d '[:space:]' < VERSION)
+          meta=$(sed -n 's/.*<release version="\([^"]*\)".*/\1/p' packaging/*.metainfo.xml | head -1)
+          echo "VERSION=$version metainfo=$meta"
+          test "$version" = "$meta"
+
+      - name: Icon name matches the component id
+        run: |
+          id=$(basename packaging/*.metainfo.xml .metainfo.xml)
+          grep -qx "Icon=$id" "packaging/$id.desktop"
+          test -f "packaging/$id.png" && test -f "packaging/$id.svg"

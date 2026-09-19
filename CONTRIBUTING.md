@@ -120,6 +120,50 @@ same reason — each looks like an oversight and is not:
     unused, so the GL stack is listed by hand in `build-deb.sh` and explained
     there.
 
+## Repository settings
+
+One-time, and one of them is load-bearing: `SECURITY.md` tells people to report
+privately through GitHub's **Report a vulnerability** button, and that button
+does not exist until the setting is on.
+
+- **Private vulnerability reporting** (Settings → Security).
+- **Secret scanning with push protection.**
+- **Branch protection** on `main`.
+- Disable the wiki unless you intend to use it.
+
+## Releasing
+
+`VERSION` is the single source of truth. Three things move with it, and
+`scripts/stage-install.sh` and CI both fail if the first two disagree:
+
+1. `VERSION`
+2. the `<release version=... date=...>` block in `packaging/*.metainfo.xml`,
+   which is what software centres display
+3. `CHANGELOG.md`
+
+Then tag, and build packages per distribution release with
+`scripts/build-packages.sh` — one per release you support, oldest first, since
+a package only installs on the release it was linked against. Check each one
+before attaching it to anything:
+
+    ./scripts/test-package.sh deb
+    ./scripts/test-package.sh rpm
+
+That installs the package into a clean container and runs the application's
+self-check there, so the dependency resolver supplies Qt, OpenCV and the GL
+stack rather than the build tree. It is the only step that exercises what
+somebody actually downloads.
+
+Two things belong in the release notes, because neither is visible from the
+download: that this is **not a medical device** (link `DISCLAIMER`), and that
+the models are fetched on first use — about 1.2 GB — with the application
+usable before that finishes.
+
+Add a `CHANGELOG.md` entry for anything a user would notice. Anything that
+changes what a patient's input is understood to mean goes in regardless of how
+small the diff is — a one-line threshold change can alter which answer gets
+spoken.
+
 ## Patient data
 
 OpennComm stores a patient's conversation history locally, and that history is

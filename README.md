@@ -18,7 +18,9 @@ before deploying it to anyone.
 
 ## Status
 
-Early. See [docs/PLAN.md](docs/PLAN.md) for what is built and what is not.
+Early. Version 0.1.0 — see [CHANGELOG.md](CHANGELOG.md) for what that release
+contains and what it does not, and [docs/PLAN.md](docs/PLAN.md) for the longer
+account of what is built, what is not, and why.
 
 ## What you need
 
