@@ -18,6 +18,7 @@ no account, no telemetry. English only for now.
 | Per-patient tuning: blink speed, morse letter gap | **working** |
 | Five-point gaze calibration, saved between runs | **working** |
 | Model downloads, CI, clean-clone build | **working** |
+| `.deb` and `.rpm` packaging | **working**, built per distribution in a container |
 | AppImage packaging | **produces a binary that crashes — see below** |
 | Question and answer history, searchable and deletable | **working** |
 | Builds on a distro other than the developer's | **verified on Ubuntu 24.04** |
@@ -335,8 +336,86 @@ already. Tamil is deferred.
 ## Next
 
 1. Camera exposure auto-tune (finding 6).
-2. The `libggml.so.0` SONAME collision (finding 14).
-3. AppImage, rebuilt inside an older-distro container (finding 13).
+2. AppImage, rebuilt inside an older-distro container (finding 13). Lower
+   priority now that `.deb` and `.rpm` exist: those take the same "build in a
+   container of the oldest release you support" discipline and do not have to
+   bundle Qt to do it, which is what the AppImage cannot currently survive.
+
+## Packaging
+
+`.deb` and `.rpm` are built by `scripts/build-packages.sh`, each inside a
+container of the distribution it targets. Both come from one staged tree
+(`scripts/stage-install.sh`), so the two formats cannot drift apart.
+
+The shape of it: system Qt, OpenCV and SQLite; everything no distribution
+packages -- MediaPipe, llama.cpp, whisper.cpp, ggml, Piper -- bundled in a
+private `/usr/lib64/openncomm`. This is the arrangement finding 13's table
+already showed to work ("ours + system Qt: runs"), which is why it needed no
+new debugging.
+
+Three things that are easy to get wrong here, all of them now enforced rather
+than remembered:
+
+- **The vendored libraries carry absolute RUNPATHs** from the machine that
+  built them, and MediaPipe carries one pointing into Google's Bazel layout.
+  `cmake/patch-rpath.cmake` rewrites them all to `$ORIGIN` at install time and
+  fails loudly if it finds nothing to patch -- which it did once, silently,
+  when the prefix was resolved at configure time and `--prefix` then moved it.
+- **A package is pinned to the sonames it was linked against.** The Fedora 43
+  rpm requires `Qt_6.10` and `libopencv_core.so.411` and will not install on
+  Fedora 42. One build per release, oldest first.
+- **rpmbuild cannot handle a space in `_topdir`.** This checkout lives in
+  "Website Projects", so `scripts/build-rpm.sh` does its work under `/var/tmp`
+  and copies the finished package back. The same space is why the vendored
+  libraries' baked-in RUNPATHs were not merely wrong but unparseable: a RUNPATH
+  is colon-separated with no quoting.
+- **dpkg and rpm disagree about what a dependency is.** rpm generates a
+  requirement for every `DT_NEEDED` entry, so the rpm correctly asked for
+  `libGLX.so.0`, `libOpenGL.so.0`, `libEGL.so.1` and `libGLESv2.so.2`.
+  `dpkg-shlibdeps` generates one only where a symbol is actually *used*, and
+  nothing here calls a GL function — Qt's CMake package pulls GL into the link
+  while finalizing any target, as the README warns. So the first `.deb` named
+  none of the four. Found by diffing the two packages' metadata against each
+  other, which is worth doing whenever a project ships both.
+
+  How bad it was is worth stating precisely, because the obvious version of
+  this story is wrong. `libqt6gui6` on Debian already depends on `libegl1`,
+  `libglx0` and `libopengl0`, so three of the four arrived anyway — latently,
+  by way of somebody else's packaging decision rather than ours. The fourth,
+  `libgles2`, is pulled in by nothing: it is needed by the private
+  `libmediapipe.so`, which `dpkg-shlibdeps` does not examine at all. That one
+  was a real missing dependency, and the same absence had already broken the
+  build container earlier ("libGLESv2.so.2 => not found"). All four are now
+  declared by hand in `scripts/build-deb.sh`, including the three that would
+  have worked by luck.
+
+- **Installing the rpm pulls about 1 GiB of things OpennComm never uses.**
+  Measured in a bare `fedora:42` container: the 53 MB package schedules 483
+  packages and 1 GiB of downloads. `dnf install gdal-libs` on its own accounts
+  for 171 packages and 862 MiB of that — Fedora's `opencv-videoio` links the
+  full GDAL stack, which drags in PDAL, arrow, hdf5 and the `proj-data-*`
+  cartographic grids (`proj-data-us` alone unpacks to 319 MiB). None of it is
+  reachable from this application, which uses OpenCV for camera capture and
+  colour conversion and nothing else.
+
+  The `.deb` is better but not clean: 366 packages in the same conditions, of
+  which 5 are gdal/proj. Both figures are inflated by the bare container, which
+  starts with no Qt, no mesa and no X11 — a real desktop already has that part.
+  The geospatial stack is the part it would *not* already have, which is why it
+  is the number worth quoting.
+
+  Not fixed, and not trivially fixable: the dependency is real as far as the
+  linker is concerned, because `libopencv_videoio.so` is what `src/camera.cc`
+  calls. The options are to capture video without OpenCV, or to vendor a
+  minimal OpenCV built without GDAL — and the second gives up exactly the
+  system-library principle that makes these packages work at all. Worth
+  revisiting before recommending the rpm to anyone on a metered connection.
+
+`scripts/test-package.sh` exists for this class of bug: it installs a built
+package into a clean container of its own distribution and runs `--check`
+there, so apt or dnf resolves the package's declared dependencies with nothing
+from the build tree present. It confirmed the fixed `.deb`. It did not find the
+bug — a metadata diff did — which is the argument for doing both.
 
 ## Settled
 

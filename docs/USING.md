@@ -2,14 +2,17 @@
 # Using OpennComm
 
 How the application behaves once it is running, and why it behaves that way.
-For installing and building it, see the [README](../README.md).
+For installing and building it, see the [README](../README.md) — either install
+the `.deb` or `.rpm` and run `openncomm`, or run `./run.sh` from a source tree.
+Everything on this page is the same either way.
 
 ## The window
 
 It opens full screen, because the patient reads the four answers from a bed and
 every unused pixel is one the answers could have been printed in. **F11**
 toggles, **Escape** returns to a window, and `./run.sh --windowed` starts in
-one.
+one — `openncomm --windowed` if you installed a package rather than running
+from a source tree.
 
 ## Who it is speaking for
 

@@ -84,11 +84,102 @@ set_target_properties(openncomm_lib PROPERTIES AUTOMOC ON)
 
 qt_add_executable(openncomm main.cc)
 target_link_libraries(openncomm PRIVATE openncomm_lib)
+
+# ---- Installation -----------------------------------------------------------
+include(GNUInstallDirs)
+
+# A private library directory. Nothing vendored here -- mediapipe, llama.cpp,
+# whisper.cpp, ggml, piper -- is packaged by any distribution, so it travels
+# with the application rather than pretending to be a system library. Qt,
+# OpenCV and sqlite3 are the opposite case and come from the distribution.
+set(OPENNCOMM_PKGLIBDIR ${CMAKE_INSTALL_LIBDIR}/openncomm)
+
+# paths.cc needs to know how this distribution spells libdir so it can find
+# piper relative to the executable. See the comment there.
+target_compile_definitions(openncomm_lib PRIVATE
+  OPENNCOMM_LIBDIR="${CMAKE_INSTALL_LIBDIR}")
+
 # Qt is LGPL-3.0: it must stay dynamically linked. See THIRD_PARTY.md.
 set_target_properties(openncomm PROPERTIES
   AUTOMOC ON
-  INSTALL_RPATH "$ORIGIN/../lib"
+  INSTALL_RPATH "$ORIGIN/../${OPENNCOMM_PKGLIBDIR}"
 )
+
+install(TARGETS openncomm RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+
+# install(DIRECTORY) rather than install(FILES), because these are symlink
+# chains -- libllama.so -> .so.0 -> .so.0.4.1 -- and the loader asks for the
+# SONAME in the middle. install(FILES) would dereference each link and install
+# three identical copies under the wrong names.
+foreach(libdir ${GGML_PREFIX}/lib ${LLAMA_DIR}/build/bin ${WHISPER_DIR}/build/bin
+                ${CMAKE_SOURCE_DIR}/third_party/mediapipe/lib)
+  install(DIRECTORY ${libdir}/
+          DESTINATION ${OPENNCOMM_PKGLIBDIR}
+          FILE_PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE
+                           GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
+          FILES_MATCHING
+            PATTERN "libggml*.so*"
+            PATTERN "libllama.so*"
+            PATTERN "libwhisper.so*"
+            PATTERN "libmediapipe.so*"
+          # FILES_MATCHING still creates every subdirectory it walks, empty,
+          # so ggml's CMake package directory has to be excluded by name.
+          PATTERN "cmake" EXCLUDE
+          PATTERN "pkgconfig" EXCLUDE)
+endforeach()
+
+# Piper ships as a prebuilt tree with its own onnxruntime, espeak-ng and
+# phoneme data, linked with RUNPATH $ORIGIN. It is copied whole and needs no
+# patching; USE_SOURCE_PERMISSIONS keeps the executable bits it arrived with.
+install(DIRECTORY ${CMAKE_SOURCE_DIR}/third_party/piper/
+        DESTINATION ${OPENNCOMM_PKGLIBDIR}/piper
+        USE_SOURCE_PERMISSIONS)
+
+# The only model small enough to ship, and the only one without which there is
+# no input at all. The rest -- about 1.2 GB -- are downloaded into the user's
+# XDG data directory on first use; see src/paths.h.
+install(FILES ${CMAKE_SOURCE_DIR}/models/face_landmarker.task
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/openncomm/models)
+
+# The vendored libraries carry RUNPATHs that are wrong everywhere but the
+# machine that built them. cmake/patch-rpath.cmake explains each one.
+# Deliberately not a configure-time error. Running from the source tree with
+# ./run.sh needs no patching and should not need patchelf installed; only
+# `cmake --install` does, and patch-rpath.cmake fails there with the same
+# advice if it is missing.
+find_program(PATCHELF_EXECUTABLE patchelf)
+install(CODE "set(OC_PATCHELF \"${PATCHELF_EXECUTABLE}\")")
+# The relative path only. CMAKE_INSTALL_PREFIX is resolved inside the script,
+# at install time, because `cmake --install --prefix` overrides it after this
+# file has already been expanded.
+install(CODE "set(OC_PKGLIBDIR_REL \"${OPENNCOMM_PKGLIBDIR}\")")
+install(SCRIPT ${CMAKE_SOURCE_DIR}/cmake/patch-rpath.cmake)
+
+# The desktop entry, icons and AppStream metadata are all named for the
+# AppStream component id, not for the binary. The id has to be reverse-DNS and
+# has to match the .desktop filename, or GNOME Software and KDE Discover will
+# not associate the metadata with the application. The executable and the
+# package are still plain "openncomm".
+set(OPENNCOMM_APPID "io.github.vishalramkn.OpennComm-Core")
+
+install(FILES ${CMAKE_SOURCE_DIR}/packaging/${OPENNCOMM_APPID}.desktop
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
+install(FILES ${CMAKE_SOURCE_DIR}/packaging/${OPENNCOMM_APPID}.png
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/256x256/apps)
+install(FILES ${CMAKE_SOURCE_DIR}/packaging/${OPENNCOMM_APPID}.svg
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps)
+install(FILES ${CMAKE_SOURCE_DIR}/packaging/${OPENNCOMM_APPID}.metainfo.xml
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/metainfo)
+
+# DISCLAIMER is not paperwork here: this is not a medical device, and someone
+# who installs a package rather than reading the repository should still be
+# able to find that out on their own machine.
+install(FILES ${CMAKE_SOURCE_DIR}/README.md
+              ${CMAKE_SOURCE_DIR}/DISCLAIMER
+              ${CMAKE_SOURCE_DIR}/THIRD_PARTY.md
+        DESTINATION ${CMAKE_INSTALL_DOCDIR})
+install(FILES ${CMAKE_SOURCE_DIR}/LICENSE
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/openncomm)
 
 # History is the one part outside core/ with logic worth pinning down: what
 # counts as an exchange, what a search matches, and above all that clearing

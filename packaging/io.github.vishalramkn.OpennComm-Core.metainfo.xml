@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<component type="desktop-application">
+  <id>io.github.vishalramkn.OpennComm-Core</id>
+  <launchable type="desktop-id">io.github.vishalramkn.OpennComm-Core.desktop</launchable>
+
+  <name>OpennComm</name>
+  <summary>Speak using head movement, blinks or morse code</summary>
+
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+
+  <url type="homepage">https://github.com/VishalRamKN/OpennComm-Core</url>
+  <url type="bugtracker">https://github.com/VishalRamKN/OpennComm-Core/issues</url>
+  <url type="vcs-browser">https://github.com/VishalRamKN/OpennComm-Core</url>
+
+  <developer id="io.github.vishalramkn">
+    <name>OpennComm contributors</name>
+  </developer>
+
+  <description>
+    <p>
+      OpennComm is assistive communication for people who cannot speak or use
+      their hands. A webcam tracks head movement and blinks; those become
+      letters, words and spoken sentences.
+    </p>
+    <p>
+      Everything runs on your own machine. Speech recognition, sentence
+      suggestion and the synthesised voice are all local, so nothing a patient
+      says is sent anywhere.
+    </p>
+    <p>
+      It is usable before anything has been downloaded: morse spelling and the
+      built-in phrasebook need only the face model that ships with the package.
+      The larger speech and language models, about 1.2 GB, are fetched on first
+      use.
+    </p>
+    <p>
+      OpennComm is not a medical device and must not be relied on for clinical
+      decisions or emergency communication. See the DISCLAIMER shipped with
+      this package.
+    </p>
+  </description>
+
+  <categories>
+    <category>Utility</category>
+    <category>Accessibility</category>
+  </categories>
+
+  <keywords>
+    <keyword>AAC</keyword>
+    <keyword>accessibility</keyword>
+    <keyword>communication</keyword>
+    <keyword>speech</keyword>
+    <keyword>paralysis</keyword>
+  </keywords>
+
+  <!-- The reason this application exists, in the vocabulary assistive
+       technology catalogues actually search on. -->
+  <provides>
+    <binary>openncomm</binary>
+  </provides>
+
+  <requires>
+    <display_length compare="ge">768</display_length>
+  </requires>
+
+  <recommends>
+    <control>pointing</control>
+  </recommends>
+
+  <content_rating type="oars-1.1"/>
+</component>

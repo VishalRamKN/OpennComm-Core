@@ -71,6 +71,55 @@ change to `core/` needs hardware to test, the change is in the wrong place.
 The test suites carry the rules above. A patch that turns one red has not found
 a flaky test.
 
+## If you touch packaging
+
+Packages are built with `./scripts/build-packages.sh`, and checked by
+installing one into a clean container and running the application there:
+
+    ./scripts/test-package.sh deb
+
+Four rules here, numbered on from the list above because they exist for the
+same reason — each looks like an oversight and is not:
+
+12. **There is exactly one ggml in the process.** llama.cpp and whisper.cpp
+    each vendor their own and each calls it `libggml.so.0`, at different
+    versions. `scripts/fetch-deps.sh` builds llama.cpp's, installs it to
+    `third_party/prefix`, and builds whisper.cpp against it with
+    `WHISPER_USE_SYSTEM_GGML=ON`; the ordering in that script is load-bearing.
+
+    Putting them in separate directories does **not** fix this. The dynamic
+    linker resolves a library once per SONAME per process and keys its cache on
+    the SONAME, not the path, so the first `libggml.so.0` loaded serves both
+    and the other runtime silently calls an ABI it was not built against. That
+    is not a crash; it is wrong answers. A guard at the end of `fetch-deps.sh`
+    fails the build if a `libggml*.so` reappears under `third_party/whisper.cpp`.
+
+13. **Vendored libraries get their RUNPATH rewritten to `$ORIGIN` on install.**
+    llama.cpp and whisper.cpp bake in the absolute path of the tree that built
+    them, and MediaPipe arrives pointing into Google's internal Bazel layout.
+    `cmake/patch-rpath.cmake` does this and fails loudly if it patches nothing.
+    Do not "simplify" that failure away — it fired once already on a real bug,
+    and the silent version of it ships libraries with someone else's paths.
+
+14. **The AppStream id is one name across five files.** It is
+    `io.github.vishalramkn.OpennComm-Core` — reverse-DNS, matching the
+    repository — and it is simultaneously the `.desktop` filename, both icon
+    filenames, the `.metainfo.xml` filename, the `<id>`, the `<launchable>` and
+    the `Icon=` line. A desktop environment associates metadata, icon and
+    launcher *by that name matching*, so a half-finished rename does not fail
+    any build; it produces an application that installs fine and shows up in
+    GNOME Software with no icon and no description. `src/CMakeLists.txt` spells
+    it once, in `OPENNCOMM_APPID`. Do not rename the executable or the package
+    to match — those are plain `openncomm`, deliberately.
+
+15. **Both package formats come from one staged tree.** `stage-install.sh`
+    builds it; `build-deb.sh` and `build-rpm.sh` only wrap it. If the `.deb`
+    and the `.rpm` ever disagree about what is inside them, nobody outside can
+    see it. Note that `dpkg-shlibdeps` and rpm's generator do **not** agree
+    about what a dependency is: shlibdeps omits libraries whose symbols go
+    unused, so the GL stack is listed by hand in `build-deb.sh` and explained
+    there.
+
 ## Patient data
 
 OpennComm stores a patient's conversation history locally, and that history is

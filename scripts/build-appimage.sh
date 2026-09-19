@@ -13,7 +13,9 @@
 # finishes -- morse spelling and the built-in phrasebook need nothing more than
 # the face model. Keep it that way.
 #
-# KNOWN BROKEN on a current Fedora. The AppImage this produces segfaults during
+# KNOWN BROKEN on a current Fedora, and no longer the recommended path --
+# scripts/build-packages.sh builds a .deb and a .rpm that work. See the
+# Packaging section of the README. The AppImage this produces segfaults during
 # Qt platform-plugin initialisation. Verified by elimination: the same binary
 # runs correctly against our own libraries plus the system Qt, and crashes only
 # when linuxdeploy's bundled copies are on the library path.
@@ -25,8 +27,9 @@
 #
 # The fix is the thing AppImages are supposed to do anyway: build inside a
 # container running the OLDEST distribution you intend to support, rather than
-# the newest. Not done yet. Until then `./run.sh` is the supported way to run
-# this.
+# the newest. Not done yet, and no longer urgent: scripts/build-packages.sh
+# builds a .deb and a .rpm that install and run, and ./run.sh still works from
+# a source tree.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -66,10 +69,9 @@ cp build/src/openncomm "$APPDIR/usr/bin/"
 # into usr/lib/openncomm put two differently-patched copies of each on the
 # library path, which is a hazard of its own.
 #
-# It also exposes a real conflict to fix before this ships: llama.cpp and
-# whisper.cpp each install a libggml.so.0, at versions 0.24 and 0.23. One
-# SONAME, two ABIs -- only one can load, and whichever loses runs against the
-# wrong library. It happens to work today. It should not be left to luck.
+# The libggml.so.0 SONAME conflict that used to be noted here is fixed:
+# scripts/fetch-deps.sh builds one ggml and builds whisper.cpp against it. See
+# finding 14 in docs/PLAN.md.
 
 # Piper is self-contained: its own onnxruntime, libespeak-ng and phoneme data.
 cp -a third_party/piper/.                               "$APPDIR/usr/share/openncomm/piper/"
@@ -130,8 +132,8 @@ fi
 "$TOOLS/linuxdeploy" \
   --appdir "$APPDIR" \
   --executable build/src/openncomm \
-  --desktop-file packaging/openncomm.desktop \
-  --icon-file packaging/openncomm.png \
+  --desktop-file packaging/io.github.vishalramkn.OpennComm-Core.desktop \
+  --icon-file packaging/io.github.vishalramkn.OpennComm-Core.png \
   --library third_party/mediapipe/lib/libmediapipe.so \
   --plugin qt
 

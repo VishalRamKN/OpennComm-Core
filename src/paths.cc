@@ -8,6 +8,13 @@
 #include <QFileInfo>
 #include <QStandardPaths>
 
+/* The install libdir, as GNUInstallDirs spells it on the distribution this was
+ * built for. Only a default so that a build without install rules still
+ * compiles; the real value comes from src/CMakeLists.txt. */
+#ifndef OPENNCOMM_LIBDIR
+#define OPENNCOMM_LIBDIR "lib"
+#endif
+
 namespace {
 
 QString firstDirContaining(const QStringList &dirs, const QString &probe)
@@ -82,6 +89,13 @@ QString piperBinary()
     const QString bin = QCoreApplication::applicationDirPath();
     const QStringList candidates = {
         qEnvironmentVariable("OPENNCOMM_PIPER"),
+        /* Installed. Piper is a binary with its own shared libraries beside it,
+         * so it belongs in libdir, not share/ -- and libdir is spelled
+         * differently per distribution (lib64 on Fedora, lib/x86_64-linux-gnu
+         * on Debian), which is why it is baked in at build time. Still relative
+         * to the executable, so an installed tree stays relocatable. */
+        QDir(bin).filePath(QStringLiteral("../" OPENNCOMM_LIBDIR "/openncomm/piper/piper")),
+        /* AppImage, which puts everything under share/ regardless. */
         QDir(bin).filePath(QStringLiteral("../share/openncomm/piper/piper")),
         QDir(bin).filePath(QStringLiteral("../../third_party/piper/piper")),
         QStringLiteral("third_party/piper/piper"),

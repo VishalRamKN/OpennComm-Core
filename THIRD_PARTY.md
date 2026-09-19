@@ -3,7 +3,7 @@
 
 OpennComm is licensed GPL-3.0-or-later. Everything below is compatible with
 that, but the terms differ and several require attribution in distributed
-builds. Verified 2026-09-18.
+builds. Verified 2026-09-18; packaging section added 2026-09-19.
 
 ## Libraries
 
@@ -16,9 +16,42 @@ builds. Verified 2026-09-18.
 | Piper | MIT, bundling **GPL-3.0** espeak-ng | The prebuilt `rhasspy/piper` binary, invoked as a subprocess and never linked. It carries its own onnxruntime and libespeak-ng. Upstream's maintained successor (`OHF-Voice/piper1-gpl`) relicensed to GPL-3.0 for exactly this reason. |
 | llama.cpp | MIT | Answer generation. |
 | whisper.cpp | MIT | Speech recognition. |
+| ggml | MIT | The tensor library under both of the above. Built once, from llama.cpp's copy, and shared — whisper.cpp is compiled against it rather than vendoring a second one. See CONTRIBUTING.md, rule 12. |
+| onnxruntime | MIT | Inside the prebuilt Piper binary; never linked by this project. |
 | ffmpeg | LGPL-2.1+ / GPL-2+ | Microphone capture, as a subprocess. Invoked, never linked. |
 | SQLite | blessing (public domain) | Local history. |
 | PipeWire / PulseAudio | MIT / LGPL-2.1+ | Audio capture and playback. |
+
+## What the packages actually redistribute
+
+Until there were packages this section did not need to exist: a source tree
+distributes nothing. The `.deb` and `.rpm` do, so these are the components
+whose terms now apply to a shipped artifact rather than to a build:
+
+| Shipped in the package | License | Obligation |
+|---|---|---|
+| `libmediapipe.so` | Apache-2.0 | attribution, NOTICE |
+| `face_landmarker.task` | Apache-2.0 | attribution |
+| `libllama.so`, `libwhisper.so`, `libggml*.so` | MIT | copyright notice |
+| Piper binary, `libonnxruntime.so` | MIT | copyright notice |
+| `libespeak-ng.so` and its data | **GPL-3.0** | source offer |
+
+Qt, OpenCV, SQLite and ffmpeg are **not** redistributed — the packages depend
+on the distribution's copies. That is what keeps the LGPL obligation on Qt
+trivial to meet, and it is worth preserving for that reason as well as the
+technical ones.
+
+The model weights are **not** in the package either. They are downloaded on
+first use, which is why the CC-BY-SA-4.0 voice below imposes nothing on the
+package itself.
+
+**Known gap.** The packages ship this file and the project `LICENSE` into
+`/usr/share/doc/openncomm`, which covers attribution in substance. They do not
+yet carry the verbatim upstream licence texts and NOTICE files for MediaPipe,
+llama.cpp, whisper.cpp, ggml, Piper, onnxruntime and espeak-ng, which is what
+Apache-2.0 section 4 and the MIT notice clause actually ask for. Nor is there
+a written offer of source for espeak-ng. Close both before distributing
+packages to anyone outside the project.
 
 ## Why the project is GPL-3.0
 
