@@ -23,6 +23,12 @@
 #include "openncomm/answers.h"
 #include "paths.h"
 
+/* Set from the VERSION file by src/CMakeLists.txt. The fallback exists so the
+ * file still compiles if it is ever built outside this project's CMake. */
+#ifndef OPENNCOMM_VERSION
+#define OPENNCOMM_VERSION "0.0.0-unknown"
+#endif
+
 /* The model lives beside the binary in an installed build and under the source
  * tree during development. Look in both rather than making the developer
  * remember a working directory. */
@@ -124,7 +130,8 @@ static int runCheck()
         if (!ok) failures++;
     };
 
-    printf("OpennComm self-check\n\n  models: %s\n\n", qPrintable(paths::modelsDir()));
+    printf("OpennComm %s self-check\n\n  models: %s\n\n",
+           OPENNCOMM_VERSION, qPrintable(paths::modelsDir()));
 
     {
         /* Actually speak, rather than just finding the binary. Audio has more
@@ -231,6 +238,14 @@ int main(int argc, char **argv)
     bool headless = false;
     for (int i = 1; i < argc; i++) {
         const QLatin1StringView arg(argv[i]);
+        /* Answered before anything else is constructed, and without a
+         * QApplication. Someone reporting that an answer was spoken wrongly
+         * needs to be able to say which build did it, and they may be reading
+         * it out over the phone from a ward with no display attached. */
+        if (arg == QLatin1StringView("--version") || arg == QLatin1StringView("-v")) {
+            std::printf("OpennComm %s\n", OPENNCOMM_VERSION);
+            return 0;
+        }
         if (arg == QLatin1StringView("--check") || arg == QLatin1StringView("--fetch-models"))
             headless = true;
     }
@@ -239,6 +254,7 @@ int main(int argc, char **argv)
         QCoreApplication app(argc, argv);
         app.setApplicationName(QStringLiteral("OpennComm"));
         app.setOrganizationName(QStringLiteral("OpennComm"));
+        app.setApplicationVersion(QStringLiteral(OPENNCOMM_VERSION));
         for (int i = 1; i < argc; i++) {
             if (QLatin1StringView(argv[i]) == QLatin1StringView("--fetch-models"))
                 return runFetchModels();
@@ -249,6 +265,7 @@ int main(int argc, char **argv)
     QApplication app(argc, argv);
     app.setApplicationName(QStringLiteral("OpennComm"));
     app.setOrganizationName(QStringLiteral("OpennComm"));
+    app.setApplicationVersion(QStringLiteral(OPENNCOMM_VERSION));
     qRegisterMetaType<FaceFrame>("FaceFrame");
 
     const QString model = findModel();

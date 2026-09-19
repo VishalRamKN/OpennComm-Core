@@ -190,6 +190,35 @@ for spec in "amy/medium en_US-amy-medium" "joe/medium en_US-joe-medium"; do
   done
 done
 
+# The licence texts of everything the packages redistribute.
+#
+# This is not tidiness. The .deb and .rpm ship libespeak-ng.so, which is
+# GPL-3.0, and Apache-2.0 section 4 and the MIT notice clause both require the
+# licence to travel with the binary. A source tree distributes nothing and so
+# needed none of this; packages do.
+#
+# llama.cpp and whisper.cpp carry theirs in their own checked-out trees, so only
+# the four that arrive as prebuilt binaries are fetched. Pinned and checksummed
+# like everything else here: a licence that silently changed under us would be
+# the one file where nobody would think to look.
+mkdir -p third_party/licenses
+fetch third_party/licenses/mediapipe.LICENSE \
+  "https://raw.githubusercontent.com/google-ai-edge/mediapipe/v0.10.21/LICENSE" \
+  8707eef0533987efc5b155d64761eeb6e20793f50b9bd1a68dad1cf4719d0ed8 \
+  "the MediaPipe licence (Apache-2.0)"
+fetch third_party/licenses/piper.LICENSE \
+  "https://raw.githubusercontent.com/rhasspy/piper/2023.11.14-2/LICENSE.md" \
+  4cd71dece7037f1d6d93cce7570c57ab75ea9ac566fd4990be2f3ab08d15b47f \
+  "the Piper licence (MIT)"
+fetch third_party/licenses/espeak-ng.COPYING \
+  "https://raw.githubusercontent.com/espeak-ng/espeak-ng/1.52.0/COPYING" \
+  8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903 \
+  "the espeak-ng licence (GPL-3.0)"
+fetch third_party/licenses/onnxruntime.LICENSE \
+  "https://raw.githubusercontent.com/microsoft/onnxruntime/v1.14.1/LICENSE" \
+  2f07c72751aed99790b8a4869cf2311df85a860b22ded05fa22803587a48922c \
+  "the onnxruntime licence (MIT)"
+
 # Guard the invariant rather than trusting that it held. A whisper.cpp bump that
 # quietly stopped honouring WHISPER_USE_SYSTEM_GGML would put a second
 # libggml.so.0 back on the library path, and the symptom would not be a build

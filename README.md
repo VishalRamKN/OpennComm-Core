@@ -86,12 +86,18 @@ with the reasoning behind each.
 
 ## Checking it works
 
+    openncomm --version
     ./build/src/openncomm --check
 
-Exercises every subsystem and says which are up — including speaking a sentence
-aloud, because audio has more ways to be silently broken than missing. The failure this exists for is
-quiet: a language model that never loaded is indistinguishable, from the four
-buttons alone, from one that simply wrote plain answers. The running app shows
+`--version` prints the release and exits, needing no display, and `--check`
+puts the same version in its first line — that output is what belongs in a bug
+report.
+
+`--check` exercises every subsystem and says which are up — including speaking
+a sentence aloud, because audio has more ways to be silently broken than
+missing. The failure this exists for is quiet: a language model that never
+loaded is indistinguishable, from the four buttons alone, from one that simply
+wrote plain answers. The running app shows
 the same thing as a strip of indicators under the toolbar.
 
 Everything degrades independently. With no model the patient still gets four

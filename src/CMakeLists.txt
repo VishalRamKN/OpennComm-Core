@@ -105,6 +105,11 @@ set_target_properties(openncomm PROPERTIES
   INSTALL_RPATH "$ORIGIN/../${OPENNCOMM_PKGLIBDIR}"
 )
 
+# The version reaches the binary from the VERSION file, via project(). Without
+# this the program cannot say which build it is, and a report of a wrongly
+# spoken answer cannot be tied to one.
+target_compile_definitions(openncomm PRIVATE OPENNCOMM_VERSION="${PROJECT_VERSION}")
+
 install(TARGETS openncomm RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 
 # install(DIRECTORY) rather than install(FILES), because these are symlink
@@ -180,6 +185,25 @@ install(FILES ${CMAKE_SOURCE_DIR}/README.md
         DESTINATION ${CMAKE_INSTALL_DOCDIR})
 install(FILES ${CMAKE_SOURCE_DIR}/LICENSE
         DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/openncomm)
+
+# The licence of everything the package redistributes, verbatim, beside the
+# binaries it applies to. A summary in THIRD_PARTY.md is not what Apache-2.0
+# section 4 or the MIT notice clause ask for, and espeak-ng is GPL-3.0, which
+# additionally wants the source offer that WRITTEN-OFFER carries.
+install(FILES ${CMAKE_SOURCE_DIR}/packaging/WRITTEN-OFFER
+        DESTINATION ${CMAKE_INSTALL_DOCDIR})
+install(FILES
+          ${CMAKE_SOURCE_DIR}/third_party/licenses/mediapipe.LICENSE
+          ${CMAKE_SOURCE_DIR}/third_party/licenses/piper.LICENSE
+          ${CMAKE_SOURCE_DIR}/third_party/licenses/espeak-ng.COPYING
+          ${CMAKE_SOURCE_DIR}/third_party/licenses/onnxruntime.LICENSE
+        DESTINATION ${CMAKE_INSTALL_DOCDIR}/licenses)
+# These two are checked out as source, so their licences come from the trees
+# themselves rather than being fetched separately.
+install(FILES ${LLAMA_DIR}/LICENSE
+        DESTINATION ${CMAKE_INSTALL_DOCDIR}/licenses RENAME llama.cpp.LICENSE)
+install(FILES ${WHISPER_DIR}/LICENSE
+        DESTINATION ${CMAKE_INSTALL_DOCDIR}/licenses RENAME whisper.cpp.LICENSE)
 
 # History is the one part outside core/ with logic worth pinning down: what
 # counts as an exchange, what a search matches, and above all that clearing

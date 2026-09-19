@@ -69,5 +69,24 @@
     <control>pointing</control>
   </recommends>
 
+  <!-- Software centres show the version and date from here, and show nothing
+       at all without it. The version must match the VERSION file;
+       scripts/stage-install.sh fails the build if the two drift apart. -->
+  <releases>
+    <release version="0.1.0" date="2026-09-19">
+      <description>
+        <p>
+          First packaged release. Head movement, blinks and morse spelling all
+          work; speech recognition, answer suggestion and the synthesised voice
+          all run locally. Ships as a .deb and an .rpm.
+        </p>
+        <p>
+          The speech and language models, about 1.2 GB, are downloaded on first
+          use. The application is usable before that finishes.
+        </p>
+      </description>
+    </release>
+  </releases>
+
   <content_rating type="oars-1.1"/>
 </component>

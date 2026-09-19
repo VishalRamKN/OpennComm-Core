@@ -28,6 +28,18 @@ RPM_IMAGE="${RPM_IMAGE:-fedora:42}"
 ENGINE="${ENGINE:-podman}"
 command -v "$ENGINE" >/dev/null || { echo "$ENGINE not found" >&2; exit 1; }
 
+# Resolved here rather than inside the container, which has no .git and no git
+# config because the source snapshot deliberately excludes them. See the longer
+# note in scripts/build-deb.sh.
+if [ -z "${DEB_MAINTAINER:-}" ]; then
+  _n=$(git config user.name 2>/dev/null || true)
+  _e=$(git config user.email 2>/dev/null || true)
+  if [ -n "$_n" ] && [ -n "$_e" ]; then
+    DEB_MAINTAINER="$_n <$_e>"
+  fi
+fi
+export DEB_MAINTAINER="${DEB_MAINTAINER:-}"
+
 mkdir -p "$PROJECT/build"
 
 SNAPSHOT=$(mktemp "${TMPDIR:-/var/tmp}/openncomm-src.XXXXXXXX.tar")
@@ -87,7 +99,7 @@ build_deb() {
   "$ENGINE" run --rm -i < "$SNAPSHOT" \
     -v "$PROJECT/models:/models:ro,z" \
     -v "$PROJECT/build:/out:z" \
-    -e DEB_MAINTAINER="${DEB_MAINTAINER:-}" \
+    -e DEB_MAINTAINER="$DEB_MAINTAINER" \
     "$DEB_IMAGE" bash -euo pipefail -c '
       export DEBIAN_FRONTEND=noninteractive
       apt-get update -qq

@@ -18,10 +18,29 @@ VERSION=$(tr -d '[:space:]' < VERSION)
 REVISION="${DEB_REVISION:-1}"
 ARCH=$(dpkg --print-architecture)
 
-# Debian requires a maintainer in RFC 822 form. .invalid is reserved by RFC 2606
-# for exactly this: a placeholder that cannot be mistaken for a real address.
-# Set DEB_MAINTAINER before a release people will actually install.
-MAINTAINER="${DEB_MAINTAINER:-OpennComm contributors <openncomm@example.invalid>}"
+# Debian requires a maintainer in RFC 822 form, and a published package whose
+# maintainer cannot receive mail is worse than one that was never published:
+# somebody with a patient in front of them has nowhere to report a wrong answer.
+#
+# No address is baked into this repository. It falls back to the git identity of
+# whoever is building, because that is the person who produced this particular
+# binary and it is an identity they already publish on every commit. Inside a
+# packaging container there is no .git and no git config -- the snapshot excludes
+# it -- so scripts/build-packages.sh resolves this on the host and passes it in.
+if [ -n "${DEB_MAINTAINER:-}" ]; then
+  MAINTAINER="$DEB_MAINTAINER"
+else
+  _mname=$(git config user.name 2>/dev/null || true)
+  _mmail=$(git config user.email 2>/dev/null || true)
+  if [ -z "$_mname" ] || [ -z "$_mmail" ]; then
+    echo "No maintainer for this package, and none could be worked out." >&2
+    echo "  Set one:  DEB_MAINTAINER='Your Name <you@example.org>' $0" >&2
+    echo "  or configure git user.name and user.email." >&2
+    exit 1
+  fi
+  MAINTAINER="$_mname <$_mmail>"
+  echo "==> maintainer taken from git config: $MAINTAINER" >&2
+fi
 
 STAGE=$(./scripts/stage-install.sh)
 PKGDIR="$PROJECT/build/deb/openncomm_${VERSION}-${REVISION}_${ARCH}"

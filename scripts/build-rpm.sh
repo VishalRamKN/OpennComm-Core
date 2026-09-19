@@ -16,9 +16,9 @@ VERSION=$(tr -d '[:space:]' < VERSION)
 
 # rpmbuild cannot handle a path containing a space anywhere in _topdir or
 # _buildrootdir -- its own %mkbuilddir scriptlet word-splits it and aborts with
-# "does not start with RPM_BUILD_ROOT". This checkout lives in "Website
-# Projects", so the entire rpm workspace goes somewhere without spaces and only
-# the finished package is copied back.
+# "does not start with RPM_BUILD_ROOT". A source tree can easily sit under such
+# a path on a desktop, so the whole rpm workspace is built somewhere without
+# one and only the finished package is copied back.
 WORK=$(mktemp -d "${TMPDIR:-/var/tmp}/openncomm-rpm.XXXXXXXX")
 trap 'rm -rf "$WORK"' EXIT
 

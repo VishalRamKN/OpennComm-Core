@@ -11,9 +11,10 @@
 #   mediapipe arrives from a Python wheel with a RUNPATH pointing into Google's
 #   internal Bazel layout, which resolves nowhere.
 #
-#   Both are recorded with the source checkout's path, and this project's own
-#   directory name contains a space. A RUNPATH is colon-separated with no
-#   quoting, so such a path is not merely wrong, it is unparseable.
+#   Both record the absolute path of the tree that built them. Where that path
+#   contains a space -- easy to end up with on a desktop -- it is not merely
+#   wrong on another machine but unparseable: a RUNPATH is colon-separated with
+#   no quoting.
 #
 # Run as an install(SCRIPT), so `cmake --install` produces a working tree on its
 # own and the package builds inherit it rather than reimplementing it.

@@ -364,11 +364,11 @@ than remembered:
 - **A package is pinned to the sonames it was linked against.** The Fedora 43
   rpm requires `Qt_6.10` and `libopencv_core.so.411` and will not install on
   Fedora 42. One build per release, oldest first.
-- **rpmbuild cannot handle a space in `_topdir`.** This checkout lives in
-  "Website Projects", so `scripts/build-rpm.sh` does its work under `/var/tmp`
-  and copies the finished package back. The same space is why the vendored
-  libraries' baked-in RUNPATHs were not merely wrong but unparseable: a RUNPATH
-  is colon-separated with no quoting.
+- **rpmbuild cannot handle a space in `_topdir`.** Its own `%mkbuilddir`
+  scriptlet word-splits the path and aborts, so `scripts/build-rpm.sh` works
+  under `/var/tmp` and copies the finished package back. A path with a space in
+  it is also why a baked-in RUNPATH can be not merely wrong but unparseable: a
+  RUNPATH is colon-separated with no quoting.
 - **dpkg and rpm disagree about what a dependency is.** rpm generates a
   requirement for every `DT_NEEDED` entry, so the rpm correctly asked for
   `libGLX.so.0`, `libOpenGL.so.0`, `libEGL.so.1` and `libGLESv2.so.2`.

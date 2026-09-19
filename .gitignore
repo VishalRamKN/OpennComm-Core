@@ -11,5 +11,6 @@ third_party/whisper.cpp/
 third_party/piper/
 # The shared ggml staging prefix, built by scripts/fetch-deps.sh.
 third_party/prefix/
+# Upstream licence texts, fetched and checksummed by fetch-deps.sh.
+third_party/licenses/
 models/voices/
-docs/PUBLISHING.md

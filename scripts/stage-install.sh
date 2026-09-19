@@ -26,6 +26,25 @@ fi
 echo "==> fetching dependencies" >&2
 ./scripts/fetch-deps.sh >&2
 
+# The AppStream <releases> block carries a version of its own, and software
+# centres display that one rather than the package's. If it falls behind the
+# VERSION file, the package says 0.2.0 and GNOME Software says 0.1.0, and
+# nothing anywhere fails. Check before building rather than after shipping.
+VERSION=$(tr -d '[:space:]' < VERSION)
+META=$(ls packaging/*.metainfo.xml 2>/dev/null | head -1)
+if [ -n "$META" ]; then
+  META_VERSION=$(sed -n 's/.*<release version="\([^"]*\)".*/\1/p' "$META" | head -1)
+  if [ -z "$META_VERSION" ]; then
+    echo "$META has no <release version=...> entry; add one for $VERSION." >&2
+    exit 1
+  fi
+  if [ "$META_VERSION" != "$VERSION" ]; then
+    echo "version mismatch: VERSION says $VERSION, $META says $META_VERSION" >&2
+    echo "Update the <releases> block, with the release date, before building." >&2
+    exit 1
+  fi
+fi
+
 echo "==> building" >&2
 cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release >&2
 cmake --build build --target openncomm >&2
@@ -38,6 +57,11 @@ DESTDIR="$STAGE" cmake --install build --prefix "$PREFIX" >&2
 # unresolved library here becomes a package that installs cleanly and then
 # fails to start, which is the worst place to find out.
 echo "==> verifying staged tree" >&2
+# LD_LIBRARY_PATH is emptied for this one command on purpose: the point is to
+# see what the binary resolves through its own RUNPATH, not what happens to be
+# on the build machine's library path. shellcheck reads the bare `VAR= cmd` as
+# a probable typo, and here it is the whole intent.
+# shellcheck disable=SC1007
 missing=$(LD_LIBRARY_PATH= ldd "$STAGE$PREFIX/bin/openncomm" 2>/dev/null | grep "not found" || true)
 if [ -n "$missing" ]; then
   echo "staged binary has unresolved libraries:" >&2

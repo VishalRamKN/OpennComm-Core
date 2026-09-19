@@ -76,9 +76,13 @@ cp -a "%{oc_stage}/." "%{buildroot}/"
 
 %files
 %license %{_datadir}/licenses/openncomm/LICENSE
-%doc %{_docdir}/openncomm/README.md
-%doc %{_docdir}/openncomm/DISCLAIMER
-%doc %{_docdir}/openncomm/THIRD_PARTY.md
+# The whole directory rather than a list: it also holds WRITTEN-OFFER and the
+# verbatim upstream licences, and a file installed there but not listed here
+# fails the build rather than being quietly dropped. That is the right failure,
+# but a tedious one to keep rediscovering.
+# (Written without the doc-dir macro on purpose: rpm expands macros inside
+# comments too, and warns when it does.)
+%doc %{_docdir}/openncomm/
 %{_bindir}/openncomm
 %{_libdir}/openncomm/
 %{_datadir}/openncomm/

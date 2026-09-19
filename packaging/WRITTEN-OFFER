@@ -1,0 +1,31 @@
+Written offer for source code
+=============================
+
+This package contains binaries of software licensed under the GNU General
+Public License version 3, and of software licensed under the Apache License
+2.0 and the MIT licence. The full text of each licence is in the `licenses`
+directory beside this file.
+
+The GPL-3.0 component is espeak-ng, which OpennComm redistributes inside the
+prebuilt Piper binary in order to turn text into phonemes. Its source is
+available from:
+
+    https://github.com/espeak-ng/espeak-ng
+
+at tag 1.52.0, which is the version this package carries.
+
+Under section 6 of the GPL-3.0, and valid for three years from the date you
+received this package, the maintainer named in the package metadata will on
+request supply a complete machine-readable copy of the corresponding source for
+any GPL-licensed component here, on a physical medium customarily used for
+software interchange, for no more than the cost of performing the distribution.
+Requests should go to that address, or to the project's issue tracker:
+
+    https://github.com/VishalRamKN/OpennComm-Core/issues
+
+The corresponding source for OpennComm itself is that same repository. The
+exact revisions of every vendored component, with the checksums they were
+verified against, are pinned in `scripts/fetch-deps.sh` there, so any build can
+be reproduced from the repository alone.
+
+Nothing in this offer restricts rights the GPL grants you.

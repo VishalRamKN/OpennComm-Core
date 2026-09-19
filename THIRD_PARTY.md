@@ -45,13 +45,16 @@ The model weights are **not** in the package either. They are downloaded on
 first use, which is why the CC-BY-SA-4.0 voice below imposes nothing on the
 package itself.
 
-**Known gap.** The packages ship this file and the project `LICENSE` into
-`/usr/share/doc/openncomm`, which covers attribution in substance. They do not
-yet carry the verbatim upstream licence texts and NOTICE files for MediaPipe,
-llama.cpp, whisper.cpp, ggml, Piper, onnxruntime and espeak-ng, which is what
-Apache-2.0 section 4 and the MIT notice clause actually ask for. Nor is there
-a written offer of source for espeak-ng. Close both before distributing
-packages to anyone outside the project.
+The packages carry the verbatim licence of everything in that table, in
+`/usr/share/doc/openncomm/licenses/`, alongside this file and the project
+`LICENSE`. The four that arrive as prebuilt binaries are fetched and
+checksummed by `scripts/fetch-deps.sh`; llama.cpp's and whisper.cpp's come from
+their own checked-out trees.
+
+espeak-ng is GPL-3.0, so the packages also carry `WRITTEN-OFFER`, the source
+offer that section 6 requires. It names the upstream repository and tag, and
+points at `scripts/fetch-deps.sh` for the pinned revision and checksum of every
+vendored component, so a build can be reproduced from the repository alone.
 
 ## Why the project is GPL-3.0
 
