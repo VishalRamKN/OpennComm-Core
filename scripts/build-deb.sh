@@ -129,10 +129,10 @@ Description: assistive communication that runs entirely on your own machine
  the synthesised voice are all local, so nothing a patient says is sent
  anywhere.
  .
- The package is usable before anything has been downloaded: morse spelling and
- the built-in phrasebook need only the face model included here. The speech and
- language models, about 1.2 GB, are fetched into the user's own data directory
- on first use.
+ Everything it needs is in this package: the face-tracking, speech-recognition
+ and answer-writing models, and two neural voices. There is nothing to download
+ afterwards and no account to create, which is why the package is large. It
+ works on a machine that has never been connected to a network.
  .
  OpennComm is NOT a medical device. It must not be relied on for clinical
  decisions or for emergency communication. See the DISCLAIMER in
@@ -146,10 +146,19 @@ activate-noawait update-desktop-database
 interest-noawait /usr/share/icons/hicolor
 TRIGGERS
 
-echo "==> building deb $VERSION-$REVISION"
-# xz at the default level on a 200 MB tree is slow for no benefit here; most of
-# the weight is libmediapipe.so, which is already dense.
-dpkg-deb --build --root-owner-group -Zxz -z3 "$PKGDIR" \
+echo "==> building deb $VERSION-$REVISION (about 1.4 GB -- this takes a few minutes)"
+# zstd, not xz, now that the models ship inside. Measured on this tree, on the
+# GGUF: xz -3 takes 68 s per 100 MB and gets it to 95.5%; zstd -19 takes 15 s
+# per 100 MB, threaded, and gets it to 95.0%. Quantised weights barely
+# compress at all, so xz was buying a quarter of an hour of build time for
+# nothing -- and losing on ratio besides.
+#
+# Safe for this package's floor: dpkg has read data.tar.zst since 1.21.18, and
+# the oldest release that can run this at all is Debian 13 / Ubuntu 24.04.
+# --threads-max is what makes it minutes rather than tens of them; it needs
+# dpkg 1.21.9, which is older still.
+dpkg-deb --build --root-owner-group -Zzstd -z19 \
+         --threads-max="$(nproc)" "$PKGDIR" \
          "$PROJECT/build/openncomm_${VERSION}-${REVISION}_${ARCH}.deb"
 
 ls -lh "$PROJECT/build/openncomm_${VERSION}-${REVISION}_${ARCH}.deb"

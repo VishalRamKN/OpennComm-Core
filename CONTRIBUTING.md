@@ -59,7 +59,7 @@ it in `core/include/openncomm/`.
 
 ## Building and testing
 
-    ./scripts/fetch-deps.sh          # one-time: MediaPipe library and model
+    ./scripts/fetch-deps.sh          # one-time: libraries, models and voices
     cmake -B build -G Ninja
     cmake --build build
     ctest --test-dir build --output-on-failure
@@ -78,7 +78,7 @@ installing one into a clean container and running the application there:
 
     ./scripts/test-package.sh deb
 
-Four rules here, numbered on from the list above because they exist for the
+Five rules here, numbered on from the list above because they exist for the
 same reason — each looks like an oversight and is not:
 
 12. **There is exactly one ggml in the process.** llama.cpp and whisper.cpp
@@ -120,6 +120,22 @@ same reason — each looks like an oversight and is not:
     unused, so the GL stack is listed by hand in `build-deb.sh` and explained
     there.
 
+16. **The packages carry every model.** All seven files — face, speech,
+    language and both voices — ship inside the `.deb` and the `.rpm`, which is
+    why they are 1.4 GB. Do not trade that back for a smaller download. The
+    person this is installed for cannot tell you that the voice never
+    arrived; a package that installs, opens, tracks the face and then silently
+    cannot speak puts the cost of the missing gigabyte on them instead of on
+    whoever downloaded it. `stage-install.sh` and `build-packages.sh` both
+    fail on a missing model, and `test-package.sh` mounts nothing from this
+    tree so that it can actually tell.
+
+    Adding or swapping a model is four edits, not one: the download and its
+    checksum in `fetch-deps.sh`, the install rule in `src/CMakeLists.txt`, the
+    attribution in `packaging/MODEL-NOTICE`, and the row in `THIRD_PARTY.md`.
+    The notice is not paperwork — `en_US-amy-medium` is CC-BY-SA-4.0, and that
+    credit is a condition of shipping the voice at all.
+
 ## Repository settings
 
 One-time, and one of them is load-bearing: `SECURITY.md` tells people to report
@@ -156,8 +172,8 @@ somebody actually downloads.
 
 Two things belong in the release notes, because neither is visible from the
 download: that this is **not a medical device** (link `DISCLAIMER`), and that
-the models are fetched on first use — about 1.2 GB — with the application
-usable before that finishes.
+the package is about 1.4 GB because every model and both voices are inside it,
+with nothing to download after installing.
 
 Add a `CHANGELOG.md` entry for anything a user would notice. Anything that
 changes what a patient's input is understood to mean goes in regardless of how

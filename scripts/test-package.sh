@@ -9,6 +9,12 @@
 # and installs it gets a working program -- with the dependency resolver, not
 # the build tree, supplying Qt, OpenCV and the GL stack.
 #
+# Nothing from this source tree is mounted into the container and
+# OPENNCOMM_MODELS is deliberately not set. The models used to be shared in
+# from the host here, which quietly meant the one thing this script could not
+# tell you was whether the package carried them. It does now, so the container
+# gets the package and nothing else.
+#
 #   ./scripts/test-package.sh deb
 #   ./scripts/test-package.sh rpm
 set -euo pipefail
@@ -19,13 +25,30 @@ DEB_IMAGE="${DEB_IMAGE:-debian:13}"
 RPM_IMAGE="${RPM_IMAGE:-fedora:42}"
 ENGINE="${ENGINE:-podman}"
 
-# --check needs the large models, which the package deliberately does not carry.
-# They are shared in read-only and pointed at with OPENNCOMM_MODELS, which is
-# what a user would have after the first-run download.
-[ -f "$PROJECT/models/qwen2.5-1.5b-instruct-q4_k_m.gguf" ] || {
-  echo "models/ is incomplete -- run ./scripts/fetch-deps.sh first" >&2
-  exit 1
-}
+# Run inside the container once the package is installed.
+#
+# --check exercises the models by loading them, which is the real test, and the
+# files are listed by name as well. Both, not either. A file of the right name
+# that whisper or llama.cpp cannot load would pass the listing alone; and
+# whether --check can speak depends on what the base image happens to drag in
+# behind pipewire-utils, so "speech out" is not something to rely on here even
+# though a Fedora container does manage it.
+VERIFY=$(cat <<'INNER'
+command -v openncomm
+echo "==> models carried by the package"
+for m in face_landmarker.task ggml-base.en-q5_1.bin \
+         qwen2.5-1.5b-instruct-q4_k_m.gguf \
+         voices/en_US-amy-medium.onnx voices/en_US-amy-medium.onnx.json \
+         voices/en_US-joe-medium.onnx voices/en_US-joe-medium.onnx.json; do
+  f="/usr/share/openncomm/models/$m"
+  [ -s "$f" ] || { echo "MISSING from the installed package: $m" >&2; exit 1; }
+  echo "  ok  $(du -h "$f" | cut -f1)  $m"
+done
+echo
+QT_QPA_PLATFORM=offscreen openncomm --check 2>&1 |
+  grep -vE "^(W|I)[0-9]{4} |^INFO: |Logging before InitGoogle"
+INNER
+)
 
 case "${1:-}" in
   deb)
@@ -34,7 +57,6 @@ case "${1:-}" in
     echo "==> installing $(basename "$PKG") into $DEB_IMAGE"
     "$ENGINE" run --rm \
       -v "$PKG:/tmp/pkg.deb:ro,z" \
-      -v "$PROJECT/models:/models:ro,z" \
       "$DEB_IMAGE" bash -euo pipefail -c '
         export DEBIAN_FRONTEND=noninteractive
         apt-get update -qq
@@ -42,10 +64,7 @@ case "${1:-}" in
         # by hand, so a missing Depends shows up as a failure rather than being
         # papered over.
         apt-get install -y -qq /tmp/pkg.deb >/dev/null
-        command -v openncomm
-        OPENNCOMM_MODELS=/models QT_QPA_PLATFORM=offscreen \
-          openncomm --check 2>&1 |
-          grep -vE "^(W|I)[0-9]{4} |^INFO: |Logging before InitGoogle"
+        '"$VERIFY"'
       '
     ;;
   rpm)
@@ -54,13 +73,9 @@ case "${1:-}" in
     echo "==> installing $(basename "$PKG") into $RPM_IMAGE"
     "$ENGINE" run --rm \
       -v "$PKG:/tmp/pkg.rpm:ro,z" \
-      -v "$PROJECT/models:/models:ro,z" \
       "$RPM_IMAGE" bash -euo pipefail -c '
         dnf install -y -q /tmp/pkg.rpm >/dev/null
-        command -v openncomm
-        OPENNCOMM_MODELS=/models QT_QPA_PLATFORM=offscreen \
-          openncomm --check 2>&1 |
-          grep -vE "^(W|I)[0-9]{4} |^INFO: |Logging before InitGoogle"
+        '"$VERIFY"'
       '
     ;;
   *)

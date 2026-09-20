@@ -390,8 +390,9 @@ than remembered:
   have worked by luck.
 
 - **Installing the rpm pulls about 1 GiB of things OpennComm never uses.**
-  Measured in a bare `fedora:42` container: the 53 MB package schedules 483
-  packages and 1 GiB of downloads. `dnf install gdal-libs` on its own accounts
+  Measured in a bare `fedora:42` container against 0.1.0, when the package was
+  53 MB: it schedules 483 packages and 1 GiB of downloads. That is on top of
+  the package, which is now about 1.4 GB itself. `dnf install gdal-libs` on its own accounts
   for 171 packages and 862 MiB of that — Fedora's `opencv-videoio` links the
   full GDAL stack, which drags in PDAL, arrow, hdf5 and the `proj-data-*`
   cartographic grids (`proj-data-us` alone unpacks to 319 MiB). None of it is
@@ -411,11 +412,38 @@ than remembered:
   system-library principle that makes these packages work at all. Worth
   revisiting before recommending the rpm to anyone on a metered connection.
 
+- **The models were left out of the package, and the test could not see it.**
+  0.1.0 shipped the 3.6 MB face model and nothing else; the speech model, the
+  language model and both voices — 1.3 GB — were downloaded by the user with
+  `--fetch-models`. The package installed, opened, tracked the face, and then
+  had no voice, no speech recognition and no written answers, with nothing on
+  screen distinguishing "not downloaded" from "broken".
+
+  What makes this worth writing down is not the decision but why it survived.
+  `scripts/test-package.sh` mounted this tree's `models/` into the container
+  and set `OPENNCOMM_MODELS` to point at it, so the one property it could not
+  test was the one that mattered: every run reported "Everything is working"
+  on a package that, on a real machine, could not speak. A test that supplies
+  the missing thing cannot find the thing missing.
+
+  Fixed in 0.2.0: all seven files ship inside, `stage-install.sh` compares
+  each staged model's size against the source, and `test-package.sh` mounts
+  nothing at all. The packages went from 55 MB to about 1.4 GB, and the `.deb`
+  moved from xz to zstd because xz -3 spends 68 s per 100 MB on quantised
+  weights to compress them to 95.5%, where zstd -19 takes 15 s and reaches
+  95.0%.
+
+  It also moved the model licences onto the artifact. They used to bind the
+  user who downloaded them; now `en_US-amy-medium`'s CC-BY-SA-4.0 credit has
+  to travel in the package, which is what `packaging/MODEL-NOTICE` is for.
+
 `scripts/test-package.sh` exists for this class of bug: it installs a built
 package into a clean container of its own distribution and runs `--check`
 there, so apt or dnf resolves the package's declared dependencies with nothing
 from the build tree present. It confirmed the fixed `.deb`. It did not find the
-bug — a metadata diff did — which is the argument for doing both.
+GL bug — a metadata diff did — and it actively concealed the missing models
+until it stopped being handed them, which is the argument for doing both and
+for keeping the container empty.
 
 ## Settled
 

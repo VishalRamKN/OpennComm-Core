@@ -3,15 +3,14 @@
 #
 # Build an AppImage.
 #
-# The models are NOT bundled. They are about 1.2 GB against roughly 200 MB of
-# code, and bundling them would make every update a gigabyte download. The face
-# model is the exception: it is 3.6 MB, and without it there is no input at all,
-# so it ships inside. Everything else is fetched into the user's XDG data
-# directory on first use.
+# The models are NOT bundled here, unlike in the .deb and the .rpm, which carry
+# all of them. Only the face model ships inside -- it is 3.6 MB, and without it
+# there is no input at all; the rest is fetched into the user's XDG data
+# directory by `openncomm --fetch-models`.
 #
-# That is only acceptable because the application is usable before any download
-# finishes -- morse spelling and the built-in phrasebook need nothing more than
-# the face model. Keep it that way.
+# That is not a considered position, only an unfinished one: this script is
+# known broken (see below) and was left as it was. If it is ever revived, the
+# models belong inside, for the reasons in src/CMakeLists.txt.
 #
 # KNOWN BROKEN on a current Fedora, and no longer the recommended path --
 # scripts/build-packages.sh builds a .deb and a .rpm that work. See the

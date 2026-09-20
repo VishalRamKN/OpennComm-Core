@@ -5,7 +5,7 @@
 #
 # That is deliberate. A from-source %build would have to run scripts/fetch-deps.sh
 # inside the buildroot, which clones llama.cpp and whisper.cpp and downloads
-# about 1.2 GB of model weights over the network. Network access mid-build makes
+# about 1.3 GB of model weights over the network. Network access mid-build makes
 # the result depend on the day it was built, which is the opposite of what the
 # pinned checksums in that script exist to guarantee. Build once, verify once,
 # package the bytes that were verified.
@@ -27,6 +27,15 @@
 %global __brp_strip_static_archive %{nil}
 %global __brp_strip_comment_note %{nil}
 %global __brp_check_rpaths %{nil}
+
+# Threaded zstd. Fedora's default is w19.zstdio -- level 19 on one core -- and
+# this package is now 1.3 GB, nearly all of it quantised model weights that
+# compress by about five percent however long you spend on them. Single
+# threaded that is a quarter of an hour of nothing; T0 uses every core and
+# makes it a couple of minutes. The level is unchanged, so the rpm is no
+# larger. (The same reasoning, with the measurements, is in
+# scripts/build-deb.sh.)
+%global _binary_payload w19T0.zstdio
 
 Name:           openncomm
 Version:        %{oc_version}
@@ -54,10 +63,10 @@ Everything runs on this machine. Speech recognition, sentence suggestion and
 the synthesised voice are all local, so nothing a patient says is sent
 anywhere.
 
-The package is usable before anything has been downloaded: morse spelling and
-the built-in phrasebook need only the face model included here. The speech and
-language models, about 1.2 GB, are fetched into the user's own data directory
-on first use.
+Everything it needs is in this package: the face-tracking, speech-recognition
+and answer-writing models, and two neural voices. There is nothing to download
+afterwards and no account to create, which is why the package is large. It
+works on a machine that has never been connected to a network.
 
 OpennComm is NOT a medical device. It must not be relied on for clinical
 decisions or for emergency communication. See the DISCLAIMER in
