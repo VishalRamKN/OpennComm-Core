@@ -204,8 +204,25 @@ jobs:
           Start-Process -FilePath .\opencv.exe -ArgumentList "-o`"$env:RUNNER_TEMP`" -y" -Wait
           $cv = "$env:RUNNER_TEMP\opencv\build"
           if (-not (Test-Path "$cv\OpenCVConfig.cmake")) { throw "OpenCV did not extract to $cv" }
+
+          # Printed, not assumed. Which vcNN directory the Windows pack carries
+          # changes between OpenCV releases, and naming one it does not ship
+          # fails identically to naming none -- "no binaries compatible with
+          # your configuration", an hour into the job. The root CMakeLists
+          # probes for it; this is here so that when the probe finds nothing,
+          # the log says what was actually on disk instead of leaving the next
+          # person to guess again.
+          Write-Host "OpenCV pack carries:"
+          Get-ChildItem "$cv\x64" -Directory | ForEach-Object { Write-Host "  x64\$($_.Name)" }
+
+          $rt = Get-ChildItem "$cv\x64" -Directory |
+                Where-Object { Test-Path "$($_.FullName)\bin" } |
+                Sort-Object Name -Descending | Select-Object -First 1
+          if (-not $rt) { throw "no x64\vcNN\bin directory in the OpenCV pack at $cv" }
+          Write-Host "using $($rt.Name)"
+
           "OpenCV_DIR=$cv" >> $env:GITHUB_ENV
-          "$cv\x64\vc16\bin" >> $env:GITHUB_PATH
+          "$($rt.FullName)\bin" >> $env:GITHUB_PATH
 
       - name: Install sqlite3
         run: vcpkg install sqlite3:x64-windows
@@ -255,5 +272,41 @@ jobs:
       # it is past every library load.
       - name: Start the application
         run: |
-          & "${{ runner.temp }}\staged\openncomm.exe" --version
-          if ($LASTEXITCODE -ne 0) { throw "openncomm.exe --version exited $LASTEXITCODE" }
+          $exe = "${{ runner.temp }}\staged\openncomm.exe"
+          $out = "$env:RUNNER_TEMP\oc-out.txt"
+          $err = "$env:RUNNER_TEMP\oc-err.txt"
+
+          # Start-Process -Wait, not `& $exe`. openncomm.exe is a
+          # GUI-subsystem binary -- it has to be, or every launch would flash a
+          # console behind a full-screen application the patient cannot dismiss
+          # -- and PowerShell neither waits for those nor sets $LASTEXITCODE
+          # for them. The bare call returned instantly with an empty exit code,
+          # which read as the application failing when it had not been waited
+          # for at all.
+          $p = Start-Process -FilePath $exe -ArgumentList '--version' -Wait -PassThru `
+                             -RedirectStandardOutput $out -RedirectStandardError $err
+          Get-Content $out, $err -ErrorAction SilentlyContinue | ForEach-Object { Write-Host $_ }
+          if ($p.ExitCode -ne 0) { throw "openncomm.exe --version exited $($p.ExitCode)" }
+
+      # The portable build, as something that can be downloaded.
+      #
+      # This is not what ships. scripts/build-windows.ps1 on a real machine
+      # makes the release artifacts, installer included. This exists so a
+      # runnable copy can reach a test machine without installing Visual
+      # Studio, Qt and OpenCV there first -- which, when the thing being tested
+      # is a webcam and a microphone, is the entire job.
+      #
+      # Uploaded only when asked for by hand. Pushing 1.5 GB on every build of
+      # main would be slow and pointless; the person who wants it knows they
+      # want it.
+      - name: Upload the portable build
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpennComm-windows-x64-portable
+          path: ${{ runner.temp }}/staged
+          retention-days: 14
+          # Stored, not deflated. The bulk of this is already-quantised model
+          # weights, which do not compress -- spending the minutes only makes
+          # the download arrive later.
+          compression-level: 0

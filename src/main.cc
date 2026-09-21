@@ -47,12 +47,28 @@
  * normal path a console it does not want. Nothing is allocated when there is
  * no parent console -- a double-click, or a Start Menu launch -- because a
  * window that appears and vanishes is worse than silence. */
+static bool hasRealHandle(DWORD which)
+{
+    const HANDLE h = GetStdHandle(which);
+    return h != nullptr && h != INVALID_HANDLE_VALUE;
+}
+
 static void attachParentConsole()
 {
+    /* Asked before attaching, because attaching gives the process console
+     * handles and the answer would then always be yes. */
+    const bool out_redirected = hasRealHandle(STD_OUTPUT_HANDLE);
+    const bool err_redirected = hasRealHandle(STD_ERROR_HANDLE);
+
     if (!AttachConsole(ATTACH_PARENT_PROCESS)) return;
+
+    /* Only a stream with nowhere to go is pointed at the console. Doing it
+     * unconditionally breaks redirection: `openncomm.exe --check > log.txt`
+     * would write to the terminal and leave the file empty, and a caregiver
+     * asked to send that file would send nothing. */
     FILE *unused = nullptr;
-    freopen_s(&unused, "CONOUT$", "w", stdout);
-    freopen_s(&unused, "CONOUT$", "w", stderr);
+    if (!out_redirected) freopen_s(&unused, "CONOUT$", "w", stdout);
+    if (!err_redirected) freopen_s(&unused, "CONOUT$", "w", stderr);
 }
 #else
 static void attachParentConsole() {}
