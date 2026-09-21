@@ -1,0 +1,64 @@
+Model weights in this package
+=============================
+
+This package contains five trained models. They are not code, and their
+licences are not this project's: "open weights" is not "open source", and each
+of these was checked individually before it was included. The verbatim text of
+every licence named below is in the `licenses` directory beside this file.
+
+Face tracking
+-------------
+
+    face_landmarker.task
+    MediaPipe Face Landmarker, float16, version 1, by Google
+    https://developers.google.com/mediapipe/solutions/vision/face_landmarker
+    Apache License 2.0 -- licenses/mediapipe.LICENSE
+
+Speech recognition
+------------------
+
+    ggml-base.en-q5_1.bin
+    OpenAI Whisper base.en, quantised to q5_1 and converted to GGML by the
+    whisper.cpp project
+    https://huggingface.co/ggerganov/whisper.cpp
+    MIT License, (c) OpenAI -- licenses/whisper-model.LICENSE
+
+Answer generation
+-----------------
+
+    qwen2.5-1.5b-instruct-q4_k_m.gguf
+    Qwen2.5-1.5B-Instruct, quantised to Q4_K_M, by Alibaba Cloud
+    https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF
+    Apache License 2.0 -- licenses/qwen2.5.LICENSE
+
+Voices
+------
+
+    voices/en_US-amy-medium.onnx
+    The Piper voice "amy", medium quality, trained from the Mimic 3 en_US
+    dataset of the same name.
+    https://huggingface.co/rhasspy/piper-voices
+    https://github.com/MycroftAI/mimic3-voices
+
+    Creative Commons Attribution-ShareAlike 4.0 International
+    (CC-BY-SA-4.0) -- licenses/CC-BY-SA-4.0.txt
+
+    ATTRIBUTION, as that licence requires: the voice is by the Mycroft AI
+    Mimic 3 project, used unmodified and under the same terms. If you
+    redistribute a modified version of this voice, you must do so under
+    CC-BY-SA-4.0 as well. This condition applies to the voice alone. It does
+    not extend to OpennComm, which is GPL-3.0-or-later; CC-BY-SA-4.0 is
+    one-way compatible with GPL-3.0, which is why the two can ship together.
+
+    voices/en_US-joe-medium.onnx
+    The Piper voice "joe", medium quality.
+    https://huggingface.co/rhasspy/piper-voices
+    CC0 1.0 Universal, public domain dedication -- licenses/CC0-1.0.txt
+    No conditions.
+
+A note on what is deliberately absent: there are better male voices available
+for Piper -- en_US-ryan-medium and en_US-hfc_male-medium -- and both are
+CC-BY-NC-SA-4.0. A non-commercial clause is not an open source licence and is
+incompatible with GPL-3.0, and it would stop a hospital redistributing a build
+of this program, which is the point of the project. That is why the male voice
+here is the CC0 one.

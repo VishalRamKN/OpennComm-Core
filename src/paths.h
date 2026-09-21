@@ -4,14 +4,22 @@
 /* Where the models and the Piper binary live.
  *
  * Three layouts have to work: a development tree, an installed prefix, and an
- * AppImage whose own directory is read-only. The models are too large to sit
- * inside a bundle -- about 1.2 GB against roughly 200 MB of code -- so a
- * packaged build downloads them into the user's XDG data directory on first
- * use, and finds them there afterwards.
+ * AppImage whose own directory is read-only.
  *
- * What is NOT conditional on any of that: the application must be usable before
- * a single model has been downloaded. Morse spelling and the intent phrasebook
- * need nothing but the face model, which is small enough to bundle.
+ * A .deb or .rpm carries every model it needs -- face tracking, speech
+ * recognition, answer generation and both voices -- so an installed system
+ * finds all of them beside the binary and never has to reach the network. The
+ * XDG data directory is searched all the same, and is still where
+ * `--fetch-models` writes: it is how a source tree and the AppImage get their
+ * models, and how anybody adds a Piper voice of their own without root.
+ *
+ * Each file is resolved on its own, never from one shared directory, because
+ * those two sources mix: a packaged install with a third voice dropped into
+ * ~/.local/share is a normal thing to have.
+ *
+ * What is NOT conditional on any of that: the application must be usable with
+ * whatever subset of the models is actually present. Morse spelling and the
+ * intent phrasebook need nothing but the face model.
  */
 #ifndef OPENNCOMM_PATHS_H
 #define OPENNCOMM_PATHS_H

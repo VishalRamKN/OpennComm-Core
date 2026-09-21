@@ -219,6 +219,35 @@ fetch third_party/licenses/onnxruntime.LICENSE \
   2f07c72751aed99790b8a4869cf2311df85a860b22ded05fa22803587a48922c \
   "the onnxruntime licence (MIT)"
 
+# The licences of the model weights, which the packages now redistribute.
+#
+# They did not used to. The weights were downloaded by the user, so their terms
+# bound the user and not the artifact; that is the sentence THIRD_PARTY.md used
+# to carry. Shipping them inside the .deb and the .rpm moves every one of these
+# obligations onto the package, and the sharpest is en_US-amy-medium:
+# CC-BY-SA-4.0 requires the licence and the credit to travel with the voice.
+#
+# Taken from SPDX's tagged license-list-data rather than creativecommons.org,
+# which serves the legal code as HTML that changes shape without notice; a tag
+# can be pinned and checksummed like everything else here.
+SPDX=https://raw.githubusercontent.com/spdx/license-list-data/v3.26.0/text
+fetch third_party/licenses/CC-BY-SA-4.0.txt "$SPDX/CC-BY-SA-4.0.txt" \
+  cde7883b9050a1104f4ac19a1572aafd6e5d7323b68351aaf51fbf4beba54966 \
+  "the CC-BY-SA-4.0 licence (the en_US-amy-medium voice)"
+fetch third_party/licenses/CC0-1.0.txt "$SPDX/CC0-1.0.txt" \
+  a2010f343487d3f7618affe54f789f5487602331c0a8d03f49e9a7c547cf0499 \
+  "the CC0-1.0 dedication (the en_US-joe-medium voice)"
+fetch third_party/licenses/qwen2.5.LICENSE \
+  "https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/LICENSE" \
+  832dd9e00a68dd83b3c3fb9f5588dad7dcf337a0db50f7d9483f310cd292e92e \
+  "the Qwen2.5 licence (Apache-2.0)"
+# The weights, not whisper.cpp -- the code is Georgi Gerganov's MIT licence,
+# already in that checkout, and the model is OpenAI's, under a different one.
+fetch third_party/licenses/whisper-model.LICENSE \
+  "https://raw.githubusercontent.com/openai/whisper/v20231117/LICENSE" \
+  b5d65a59060e68c4ff940e1eddfa6f94b2d68fdf58ed7f4dd57721c997e35e9d \
+  "the Whisper model licence (MIT)"
+
 # Guard the invariant rather than trusting that it held. A whisper.cpp bump that
 # quietly stopped honouring WHISPER_USE_SYSTEM_GGML would put a second
 # libggml.so.0 back on the library path, and the symptom would not be a build

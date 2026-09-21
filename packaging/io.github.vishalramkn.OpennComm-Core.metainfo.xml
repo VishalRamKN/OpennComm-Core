@@ -30,10 +30,11 @@
       says is sent anywhere.
     </p>
     <p>
-      It is usable before anything has been downloaded: morse spelling and the
-      built-in phrasebook need only the face model that ships with the package.
-      The larger speech and language models, about 1.2 GB, are fetched on first
-      use.
+      Everything it needs is in the package: the face-tracking,
+      speech-recognition and answer-writing models, and two neural voices, one
+      woman's and one man's. There is nothing to download afterwards and no
+      account to create, which is why it is a large download. It works on a
+      machine that has never been connected to a network.
     </p>
     <p>
       OpennComm is not a medical device and must not be relied on for clinical
@@ -73,16 +74,23 @@
        at all without it. The version must match the VERSION file;
        scripts/stage-install.sh fails the build if the two drift apart. -->
   <releases>
+    <release version="0.2.0" date="2026-09-20">
+      <description>
+        <p>
+          The packages now carry every model and both voices. Installing one
+          gives a working system with nothing left to download: previously the
+          speech recognition, the written answers and the neural voice all
+          needed a further 1.2 GB fetched by hand, and nothing on screen said
+          so.
+        </p>
+      </description>
+    </release>
     <release version="0.1.0" date="2026-09-19">
       <description>
         <p>
           First packaged release. Head movement, blinks and morse spelling all
           work; speech recognition, answer suggestion and the synthesised voice
           all run locally. Ships as a .deb and an .rpm.
-        </p>
-        <p>
-          The speech and language models, about 1.2 GB, are downloaded on first
-          use. The application is usable before that finishes.
         </p>
       </description>
     </release>

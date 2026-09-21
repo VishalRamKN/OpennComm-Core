@@ -49,11 +49,22 @@ trap 'rm -f "$SNAPSHOT"' EXIT
 # shared with the container read-only rather than downloaded again per build.
 # scripts/fetch-deps.sh verifies each against its checksum and, finding them
 # already correct, writes nothing.
-[ -f "$PROJECT/models/face_landmarker.task" ] || {
-  echo "models/ is empty -- run ./scripts/fetch-deps.sh on the host first," >&2
-  echo "so the containers can share them instead of downloading 1.2 GB each." >&2
-  exit 1
-}
+#
+# All of them, not just the face model: they all ship inside the packages now,
+# so a missing one is a failed build. Caught here, on the host, in the second
+# before anything starts -- rather than twenty minutes into a container, or,
+# worse, never, in a package that installs and cannot speak.
+for m in face_landmarker.task ggml-base.en-q5_1.bin \
+         qwen2.5-1.5b-instruct-q4_k_m.gguf \
+         voices/en_US-amy-medium.onnx voices/en_US-amy-medium.onnx.json \
+         voices/en_US-joe-medium.onnx voices/en_US-joe-medium.onnx.json; do
+  [ -f "$PROJECT/models/$m" ] || {
+    echo "models/$m is missing -- run ./scripts/fetch-deps.sh on the host" >&2
+    echo "first, so the containers can share the models read-only instead of" >&2
+    echo "downloading 1.3 GB each." >&2
+    exit 1
+  }
+done
 
 # What must NOT cross into the container: anything already compiled. A
 # llama.cpp built against the host's glibc would be silently reused by

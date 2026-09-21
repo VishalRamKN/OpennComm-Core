@@ -80,4 +80,27 @@ for so in "$STAGE$PREFIX"/lib*/openncomm/*.so*; do
   fi
 done
 
+# The models and the voices are the whole point of the package being 1.3 GB
+# rather than 55 MB. A staging step that silently dropped one of them produces
+# a package that installs cleanly, opens, and then has no voice -- which the
+# patient cannot report. Sizes are compared, not just names, because a
+# truncated copy passes an existence test and fails at load.
+echo "==> verifying staged models" >&2
+MODELDIR="$STAGE$PREFIX/share/openncomm/models"
+for m in face_landmarker.task ggml-base.en-q5_1.bin \
+         qwen2.5-1.5b-instruct-q4_k_m.gguf \
+         voices/en_US-amy-medium.onnx voices/en_US-amy-medium.onnx.json \
+         voices/en_US-joe-medium.onnx voices/en_US-joe-medium.onnx.json; do
+  if [ ! -f "$MODELDIR/$m" ]; then
+    echo "staged tree is missing models/$m" >&2
+    exit 1
+  fi
+  want=$(stat -c %s "models/$m")
+  got=$(stat -c %s "$MODELDIR/$m")
+  if [ "$want" != "$got" ]; then
+    echo "staged models/$m is $got bytes, source is $want" >&2
+    exit 1
+  fi
+done
+
 echo "$STAGE"

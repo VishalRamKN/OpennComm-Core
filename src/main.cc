@@ -14,6 +14,7 @@
 #include <QThread>
 #include <QTimer>
 #include <cstdio>
+#include <vector>
 
 #include "camera.h"
 #include "generator.h"
@@ -38,14 +39,18 @@ static QString findModel()
     return QFileInfo::exists(path) ? path : QString();
 }
 
-/* `openncomm --fetch-models` downloads what a packaged build deliberately does
- * not carry.
+/* `openncomm --fetch-models` downloads the models into the user's own data
+ * directory.
  *
- * Only the face model ships inside the bundle. The rest is about 1.2 GB against
- * roughly 200 MB of code, and bundling it would make every update a gigabyte
- * download. curl does the work rather than Qt Network: it is present
- * everywhere, it resumes a partial download, and it already shows a progress
- * bar that does not need reinventing.
+ * Nothing installed from a .deb or an .rpm needs this: those carry every model
+ * and both voices. It is for the layouts that do not -- a source tree where
+ * scripts/fetch-deps.sh has not been run, and the AppImage, which bundles only
+ * the face model -- and for adding a model to an installed system without
+ * root.
+ *
+ * curl does the work rather than Qt Network: it is present everywhere, it
+ * resumes a partial download, and it already shows a progress bar that does
+ * not need reinventing.
  *
  * Nothing here is required to use the application. Without any of it the
  * patient still has morse spelling, the built-in phrasebook and espeak-ng. */
@@ -78,20 +83,38 @@ static int runFetchModels()
           "voice settings" },
     };
 
+    /* What is actually missing, worked out before anything is created or
+     * announced. Looked for everywhere the application would look, not just in
+     * the download directory: a .deb or an .rpm carries all of this already,
+     * and quietly fetching a second 1.3 GB copy into the home directory of
+     * somebody who ran this out of caution is not a harmless no-op. */
+    std::vector<const Item *> missing;
+    for (const Item &item : items) {
+        const QString found = paths::model(QString::fromLatin1(item.file));
+        if (QFileInfo::exists(found))
+            printf("  have   %-28s %s\n", item.what, qPrintable(found));
+        else
+            missing.push_back(&item);
+    }
+    if (missing.empty()) {
+        /* No directory is created in this case, on purpose. An installed
+         * package needs nothing, and leaving an empty ~/.local/share behind
+         * suggests otherwise. */
+        printf("\nEverything is already installed. Run --check to verify.\n");
+        return 0;
+    }
+
     const QString dir = paths::writableModelsDir();
     if (!QDir().mkpath(QDir(dir).filePath(QStringLiteral("voices")))) {
         fprintf(stderr, "Cannot create %s\n", qPrintable(dir));
         return 1;
     }
-    printf("Downloading into %s\n\n", qPrintable(dir));
+    printf("\nDownloading into %s\n\n", qPrintable(dir));
 
     int failures = 0;
-    for (const Item &item : items) {
+    for (const Item *itemp : missing) {
+        const Item &item = *itemp;
         const QString target = QDir(dir).filePath(QString::fromLatin1(item.file));
-        if (QFileInfo::exists(target)) {
-            printf("  have   %s\n", item.what);
-            continue;
-        }
         printf("  fetch  %s\n", item.what);
         QProcess curl;
         curl.setProcessChannelMode(QProcess::ForwardedChannels);
@@ -119,11 +142,11 @@ static int runFetchModels()
  * from a model that simply wrote plain answers. */
 static int runCheck()
 {
-    /* Each model is resolved on its own, never from one shared directory. In a
-     * packaged build the face model comes from inside the bundle while the
-     * large ones have been downloaded to XDG data, so "the models directory" is
-     * not a single place. Getting this wrong reports a perfectly good install
-     * as broken. */
+    /* Each model is resolved on its own, never from one shared directory. A
+     * packaged install finds everything beside the binary, but a source tree,
+     * an AppImage, or a package with a voice added by hand mixes the two, so
+     * "the models directory" is not a single place. Getting this wrong reports
+     * a perfectly good install as broken. */
     int failures = 0;
     auto report = [&](const char *name, bool ok, const QString &detail) {
         printf("  %-12s %-4s %s\n", name, ok ? "ok" : "FAIL", qPrintable(detail));

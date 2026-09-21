@@ -31,7 +31,7 @@ QStringList candidateModelDirs()
     return {
         qEnvironmentVariable("OPENNCOMM_MODELS"),
         QDir(bin).filePath(QStringLiteral("../share/openncomm/models")), /* installed / AppImage */
-        paths::writableModelsDir(),                                      /* downloaded */
+        paths::writableModelsDir(),                                      /* fetched, or added by hand */
         QDir(bin).filePath(QStringLiteral("../../models")),              /* build tree */
         QStringLiteral("models"),                                        /* cwd, for dev */
     };
@@ -54,8 +54,7 @@ QString writableModelsDir()
 QString modelsDir()
 {
     /* Probed on the face model because it is the one that is always present:
-     * it is small enough to ship inside the bundle, and without it there is no
-     * input at all. */
+     * every layout carries it, and without it there is no input at all. */
     const QString found = firstDirContaining(candidateModelDirs(),
                                              QStringLiteral("face_landmarker.task"));
     return found.isEmpty() ? writableModelsDir() : found;
@@ -74,8 +73,8 @@ QStringList modelsDirs()
 
 QString model(const QString &filename)
 {
-    /* Large models may have been downloaded into XDG data while the face model
-     * still comes from the bundle, so each file is resolved independently. */
+    /* A voice added by hand may sit in XDG data while everything else comes
+     * from the package, so each file is resolved independently. */
     for (const QString &d : candidateModelDirs()) {
         if (d.isEmpty()) continue;
         const QString path = QDir(d).filePath(filename);

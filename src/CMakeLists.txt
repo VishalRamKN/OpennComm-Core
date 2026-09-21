@@ -140,11 +140,51 @@ install(DIRECTORY ${CMAKE_SOURCE_DIR}/third_party/piper/
         DESTINATION ${OPENNCOMM_PKGLIBDIR}/piper
         USE_SOURCE_PERMISSIONS)
 
-# The only model small enough to ship, and the only one without which there is
-# no input at all. The rest -- about 1.2 GB -- are downloaded into the user's
-# XDG data directory on first use; see src/paths.h.
-install(FILES ${CMAKE_SOURCE_DIR}/models/face_landmarker.task
-        DESTINATION ${CMAKE_INSTALL_DATADIR}/openncomm/models)
+# Every model, in the package. All of it -- roughly 1.3 GB against 200 MB of
+# code -- and the reason is not convenience.
+#
+# This program is installed for somebody who cannot speak. A package that holds
+# the face model and nothing else installs without complaint, opens, tracks the
+# face, and then quietly has no voice, no speech recognition and no written
+# answers, with nothing on screen saying which of those are missing rather than
+# broken. The caregiver setting it up, often at a bedside, has to find out from
+# documentation that a further 1.2 GB has to be downloaded before the thing
+# they installed does what it said. That is a bad way to learn it.
+#
+# So the size is paid once, at download, by a person who is looking at a
+# progress bar and knows what they are waiting for -- not later, by a patient
+# who cannot say that something is wrong.
+#
+# Listed by name rather than globbed: a glob over models/ turns a file that
+# scripts/fetch-deps.sh failed to fetch into a package that is silently
+# incomplete, which is exactly the failure this block exists to end.
+set(OPENNCOMM_MODEL_FILES
+  face_landmarker.task                    # face tracking -- without it, no input at all
+  ggml-base.en-q5_1.bin                   # speech recognition (whisper.cpp)
+  qwen2.5-1.5b-instruct-q4_k_m.gguf       # answer generation (llama.cpp)
+)
+# One voice of each gender. Which one a patient is given is not cosmetic: it is
+# the voice other people will hear as theirs. Both ship so the choice can be
+# made in Settings rather than by another download. Each .onnx needs its .json
+# beside it -- Piper reads the sample rate and the phoneme map from there, and
+# a voice whose config is missing is a voice that cannot be loaded.
+set(OPENNCOMM_VOICE_FILES
+  voices/en_US-amy-medium.onnx
+  voices/en_US-amy-medium.onnx.json
+  voices/en_US-joe-medium.onnx
+  voices/en_US-joe-medium.onnx.json
+)
+foreach(m ${OPENNCOMM_MODEL_FILES} ${OPENNCOMM_VOICE_FILES})
+  if(NOT EXISTS ${CMAKE_SOURCE_DIR}/models/${m})
+    message(FATAL_ERROR "models/${m} missing - run scripts/fetch-deps.sh")
+  endif()
+  # get_filename_component, not a second list: the voices live in a
+  # subdirectory and must keep it, because src/speech.cc finds voices by
+  # scanning <models>/voices for *.onnx.
+  get_filename_component(_subdir ${m} DIRECTORY)
+  install(FILES ${CMAKE_SOURCE_DIR}/models/${m}
+          DESTINATION ${CMAKE_INSTALL_DATADIR}/openncomm/models/${_subdir})
+endforeach()
 
 # The vendored libraries carry RUNPATHs that are wrong everywhere but the
 # machine that built them. cmake/patch-rpath.cmake explains each one.
@@ -192,11 +232,23 @@ install(FILES ${CMAKE_SOURCE_DIR}/LICENSE
 # additionally wants the source offer that WRITTEN-OFFER carries.
 install(FILES ${CMAKE_SOURCE_DIR}/packaging/WRITTEN-OFFER
         DESTINATION ${CMAKE_INSTALL_DOCDIR})
+
+# The weights are redistributed too, now that they ship inside the package,
+# and their licences are not the code's. MODEL-NOTICE names each model, where
+# it came from and what it is under. It is not documentation: en_US-amy-medium
+# is CC-BY-SA-4.0, and that licence requires the credit to travel with the
+# voice. See THIRD_PARTY.md.
+install(FILES ${CMAKE_SOURCE_DIR}/packaging/MODEL-NOTICE
+        DESTINATION ${CMAKE_INSTALL_DOCDIR})
 install(FILES
           ${CMAKE_SOURCE_DIR}/third_party/licenses/mediapipe.LICENSE
           ${CMAKE_SOURCE_DIR}/third_party/licenses/piper.LICENSE
           ${CMAKE_SOURCE_DIR}/third_party/licenses/espeak-ng.COPYING
           ${CMAKE_SOURCE_DIR}/third_party/licenses/onnxruntime.LICENSE
+          ${CMAKE_SOURCE_DIR}/third_party/licenses/CC-BY-SA-4.0.txt
+          ${CMAKE_SOURCE_DIR}/third_party/licenses/CC0-1.0.txt
+          ${CMAKE_SOURCE_DIR}/third_party/licenses/qwen2.5.LICENSE
+          ${CMAKE_SOURCE_DIR}/third_party/licenses/whisper-model.LICENSE
         DESTINATION ${CMAKE_INSTALL_DOCDIR}/licenses)
 # These two are checked out as source, so their licences come from the trees
 # themselves rather than being fetched separately.

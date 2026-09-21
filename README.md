@@ -57,8 +57,10 @@ with OpenGL, but Qt's CMake package resolves `OpenGL::GLX` while finalizing any
 executable, and without them configuration fails with an error that never
 mentions OpenGL being absent.
 
-Then about 1.2 GB of models is downloaded on first run. Nothing is sent
-anywhere; the downloads are one way.
+Then about 1.3 GB of models is downloaded once, by `scripts/fetch-deps.sh`.
+Nothing is sent anywhere; the downloads are one way. If you installed a `.deb`
+or an `.rpm` instead, they are already inside it and there is nothing to
+fetch.
 
 ## Running
 
@@ -108,37 +110,51 @@ question; with neither, morse spelling still works.
 
 ## Installing the models separately
 
+**If you installed the `.deb` or the `.rpm`, skip this.** They carry every
+model and both voices; there is nothing to download and this command will tell
+you so.
+
     ./build/src/openncomm --fetch-models
 
 Downloads the speech, answer and voice models into
-`~/.local/share/openncomm/models`. A packaged build does not carry them — they
-are about 1.2 GB against roughly 200 MB of code — so it fetches them on first
-use and finds them there afterwards.
+`~/.local/share/openncomm/models`, skipping anything the application can
+already find. It is for a source tree where `scripts/fetch-deps.sh` has not
+been run, for the AppImage, which bundles only the face model, and for adding
+a Piper voice of your own to an installed system without root.
 
-**The application works before any of that finishes.** Morse spelling and the
-built-in phrasebook need nothing but the face model, which ships inside the
-package. Without the downloads you lose spoken questions, written answers and
-the neural voice; you do not lose the ability to say something.
+**The application works with whatever is present.** Morse spelling and the
+built-in phrasebook need nothing but the face model. Without the rest you lose
+spoken questions, written answers and the neural voice; you do not lose the
+ability to say something.
 
 ## Packaging
 
-**`.deb` and `.rpm` are the supported packages.**
+**`.deb` and `.rpm` are the supported packages, and they are self-contained.**
 
     ./scripts/build-packages.sh          # both, each in a container
     ./scripts/build-packages.sh deb
     ./scripts/build-packages.sh rpm
 
 They land in `build/`. Installing one gives you `openncomm` on `PATH` and an
-entry in the desktop menu; the 1.2 GB of models are still downloaded on first
-use, so the package itself is about 55 MB.
+entry in the desktop menu, and **nothing further to download** — the packages
+carry the face, speech and language models and both voices. That is why they
+are about 1.4 GB, and install to roughly 1.5 GB. Each build takes a few
+minutes longer than the code alone would.
+
+It is a lot to download for a program of 200 MB, and it is deliberate. This
+gets installed for somebody who cannot speak. A package that installs, opens,
+tracks the face and then silently has no voice is a package whose one user
+cannot report what is wrong with it; the caregiver has to find out from
+documentation. Paying the size once, at the download, where there is a
+progress bar and somebody watching it, is the better place for the cost.
 
 **A warning about the rpm on a metered connection.** Fedora's `opencv-videoio`
-is linked against the full GDAL stack, so installing the 53 MB package also
-pulls PDAL, arrow, hdf5 and several hundred megabytes of `proj-data`
-cartographic grids — none of which OpennComm touches. On a machine that does
-not already have them, expect the install to fetch close to a gigabyte before
-the models are downloaded at all. The `.deb` does not have this to anything
-like the same degree. See `docs/PLAN.md`.
+is linked against the full GDAL stack, so installing the package also pulls
+PDAL, arrow, hdf5 and several hundred megabytes of `proj-data` cartographic
+grids — none of which OpennComm touches. On a machine that does
+not already have them, expect the install to fetch close to a gigabyte on top
+of the package's own 1.4 GB. The `.deb` does not have this to anything like
+the same degree. See `docs/PLAN.md`.
 
 These packages use the system Qt, OpenCV and SQLite and bundle only what no
 distribution ships — MediaPipe, llama.cpp, whisper.cpp, ggml and Piper — in a
@@ -196,8 +212,8 @@ container of its own distribution and run the application's self-check there:
     ./scripts/test-package.sh rpm
 
 That is the only check that exercises what a person actually downloads: the
-dependency resolver supplies Qt, OpenCV and the GL stack, and nothing is
-resolved out of the build tree.
+dependency resolver supplies Qt, OpenCV and the GL stack, the models come out
+of the package, and nothing at all is mounted in from this tree.
 
 ## Layout
 

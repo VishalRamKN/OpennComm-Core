@@ -3,7 +3,8 @@
 
 OpennComm is licensed GPL-3.0-or-later. Everything below is compatible with
 that, but the terms differ and several require attribution in distributed
-builds. Verified 2026-09-18; packaging section added 2026-09-19.
+builds. Verified 2026-09-18; packaging section added 2026-09-19; model weights
+moved into the packages, with the obligations that follow from it, 2026-09-20.
 
 ## Libraries
 
@@ -35,21 +36,36 @@ whose terms now apply to a shipped artifact rather than to a build:
 | `libllama.so`, `libwhisper.so`, `libggml*.so` | MIT | copyright notice |
 | Piper binary, `libonnxruntime.so` | MIT | copyright notice |
 | `libespeak-ng.so` and its data | **GPL-3.0** | source offer |
+| `face_landmarker.task` | Apache-2.0 | attribution |
+| `ggml-base.en-q5_1.bin` | MIT (OpenAI) | copyright notice |
+| `qwen2.5-1.5b-instruct-q4_k_m.gguf` | Apache-2.0 | attribution |
+| `voices/en_US-amy-medium.onnx` | **CC-BY-SA-4.0** | **credit, and share-alike on the voice** |
+| `voices/en_US-joe-medium.onnx` | CC0-1.0 | none |
 
 Qt, OpenCV, SQLite and ffmpeg are **not** redistributed — the packages depend
 on the distribution's copies. That is what keeps the LGPL obligation on Qt
 trivial to meet, and it is worth preserving for that reason as well as the
 technical ones.
 
-The model weights are **not** in the package either. They are downloaded on
-first use, which is why the CC-BY-SA-4.0 voice below imposes nothing on the
-package itself.
+**The model weights are in the package, as of 0.2.0.** They used to be
+downloaded by the user on first run, and this section used to say that their
+terms therefore bound the user and not the artifact. That is no longer true.
+Every licence in the last five rows above is now an obligation on the `.deb`
+and the `.rpm` themselves.
+
+One of them has teeth. `en_US-amy-medium` is CC-BY-SA-4.0: the credit has to
+travel with the voice, and a *modified* voice would have to be redistributed
+under the same licence. `packaging/MODEL-NOTICE`, installed at
+`/usr/share/doc/openncomm/MODEL-NOTICE`, is that credit — it names every
+model, where it came from, and what it is under. The share-alike condition
+attaches to the voice, not to OpennComm: CC-BY-SA-4.0 is one-way compatible
+with GPL-3.0, so the combination is fine, and the voice ships unmodified.
 
 The packages carry the verbatim licence of everything in that table, in
-`/usr/share/doc/openncomm/licenses/`, alongside this file and the project
-`LICENSE`. The four that arrive as prebuilt binaries are fetched and
-checksummed by `scripts/fetch-deps.sh`; llama.cpp's and whisper.cpp's come from
-their own checked-out trees.
+`/usr/share/doc/openncomm/licenses/`, alongside this file, `MODEL-NOTICE` and
+the project `LICENSE`. All of them but two are fetched and checksummed by
+`scripts/fetch-deps.sh`; llama.cpp's and whisper.cpp's come from their own
+checked-out trees.
 
 espeak-ng is GPL-3.0, so the packages also carry `WRITTEN-OFFER`, the source
 offer that section 6 requires. It names the upstream repository and tag, and
@@ -68,8 +84,11 @@ so that the stated licence and the distributed artifact are the same thing.
 
 **Open weights is not open source.** A model's licence is independent of this
 project's, and some widely-used models are not OSI-licensed and carry usage
-restrictions. Any model shipped or auto-downloaded by OpennComm must be
-verified before it is added here.
+restrictions. Any model shipped by OpennComm must be verified before it is
+added here — and since 0.2.0 every one of these is inside the packages, so
+"shipped" is meant literally. Adding a model now means adding its licence text
+to `scripts/fetch-deps.sh`, its install rule in `src/CMakeLists.txt`, and its
+attribution to `packaging/MODEL-NOTICE`.
 
 | Model | Licence | Status |
 |---|---|---|
@@ -102,6 +121,10 @@ share-alike, and it is the one component here whose licence is not simply
 inherited by the project's own: any distributed build must credit it, and a
 modified voice must be shared under the same terms. CC-BY-SA-4.0 is one-way
 compatible with GPL-3.0, so combining it with this project is fine.
+
+Since the packages ship the voice itself, that credit is a shipped file:
+`packaging/MODEL-NOTICE`, installed beside the licence texts. If the voice is
+ever swapped or retrained, that file and `third_party/licenses/` move with it.
 
 Auditing it was not a formality. The voice's own model card records its licence
 only as "See URL"; the terms had to be traced to the upstream dataset.
