@@ -32,6 +32,39 @@ else()
   add_compile_options(-Wall -Wextra -Wshadow)
 endif()
 
+# OpenCV's Windows pack chooses its binary directory by mapping MSVC_VERSION to
+# a vcNN folder, and it only knows the toolsets that existed when it was
+# released. Visual Studio 18 reports 1951, which OpenCV 4.11 matches against
+# nothing: OpenCV_RUNTIME comes out empty, no candidate library path is built,
+# and find_package reports
+#
+#   Found OpenCV Windows Pack but it has no binaries compatible with your
+#   configuration.
+#
+# which reads as OpenCV being absent rather than as a compiler it has not heard
+# of. This is what broke the first Windows build, on a runner whose image had
+# moved to VS 18.
+#
+# Setting both variables takes the "custom overridden values" branch at the top
+# of OpenCVConfig.cmake and skips the mapping. vc17 is the right answer rather
+# than a workaround: MSVC has kept binary compatibility since v140, and picking
+# the previous compatible runtime is exactly what OpenCV's own fallbacks do for
+# every toolset bump before this one. The job that builds this also starts the
+# application, so a broken ABI would be caught rather than assumed away.
+#
+# Set here rather than beside find_package, because src/ and spike/ both look
+# for OpenCV and a variable set in one is not visible in the other. Only when
+# nothing has been chosen already, so -DOpenCV_RUNTIME still wins; and only for
+# a toolset newer than OpenCV knows, so an older Visual Studio keeps using its
+# own vc15 or vc16 binaries. x64 because that is the only Windows architecture
+# this ships -- MediaPipe and Piper arrive as x86_64 binaries.
+if(WIN32 AND MSVC AND MSVC_VERSION GREATER 1949
+   AND NOT DEFINED OpenCV_RUNTIME AND NOT DEFINED OpenCV_ARCH)
+  set(OpenCV_RUNTIME vc17)
+  set(OpenCV_ARCH x64)
+  message(STATUS "OpenCV: MSVC ${MSVC_VERSION} is newer than this OpenCV knows; using vc17 binaries")
+endif()
+
 # Windows has no FHS: the application is one directory with the executable at
 # the top and models\, piper\ and the Qt DLLs beside it. Set before
 # GNUInstallDirs, which only fills in what has not already been decided.
