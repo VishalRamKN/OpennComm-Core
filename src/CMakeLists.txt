@@ -171,16 +171,42 @@ if(WIN32)
   # Qt needs more than its DLLs: without the platform plugin the application
   # exits at startup with "could not find or load the Qt platform plugin
   # windows", which names a file that was never copied rather than anything the
-  # person did. windeployqt is what knows the full list.
+  # person did.
   #
-  # No NO_TRANSLATIONS: that keyword only exists from Qt 6.5, and this still
-  # declares 6.4 as its floor. Qt's translation catalogues are a few hundred
-  # kilobytes next to 1.4 GB of models, which is not worth a version guard.
-  qt_generate_deploy_app_script(
-    TARGET openncomm
-    OUTPUT_SCRIPT OC_DEPLOY_SCRIPT
-    NO_UNSUPPORTED_PLATFORM_ERROR)
-  install(SCRIPT ${OC_DEPLOY_SCRIPT})
+  # windeployqt is called directly rather than through
+  # qt_generate_deploy_app_script(). That API deploys plugins to
+  # QT_DEPLOY_PLUGINS_DIR, which defaults to "plugins/" -- a sensible prefix
+  # layout, and the wrong one here. Qt's runtime looks for platforms\ beside
+  # the executable, and this install is deliberately flat so the portable .zip
+  # runs from a USB stick. Bending the deploy API's directory variables into
+  # that shape is more moving parts than calling the tool it wraps, which puts
+  # everything beside the .exe by default -- exactly the layout wanted.
+  #
+  # That mismatch is what the first successful Windows build found: every DLL
+  # present, every model present, and no platforms\qwindows.dll.
+  get_target_property(_oc_qmake Qt6::qmake IMPORTED_LOCATION)
+  get_filename_component(_oc_qt_bin "${_oc_qmake}" DIRECTORY)
+  find_program(OC_WINDEPLOYQT windeployqt HINTS "${_oc_qt_bin}" REQUIRED)
+
+  # --compiler-runtime, not the default: the portable .zip is meant to run on a
+  # machine nobody has administrator rights on, and "install the Visual C++
+  # redistributable first" is not something that can be done there. The few MB
+  # buys an application that starts on a clean Windows.
+  #
+  # The software OpenGL fallback is deliberately NOT excluded. It is the thing
+  # that makes Qt render inside a virtual machine or over remote desktop, both
+  # of which are realistic places for this to be set up.
+  install(CODE "
+    set(_oc_exe \"\${CMAKE_INSTALL_PREFIX}/openncomm.exe\")
+    message(STATUS \"windeployqt: \${_oc_exe}\")
+    execute_process(
+      COMMAND \"${OC_WINDEPLOYQT}\"
+              --release --no-translations --compiler-runtime \"\${_oc_exe}\"
+      RESULT_VARIABLE _oc_rc)
+    if(NOT _oc_rc EQUAL 0)
+      message(FATAL_ERROR \"windeployqt failed with \${_oc_rc}\")
+    endif()
+  ")
 else()
   # install(DIRECTORY) rather than install(FILES), because these are symlink
   # chains -- libllama.so -> .so.0 -> .so.0.4.1 -- and the loader asks for the
