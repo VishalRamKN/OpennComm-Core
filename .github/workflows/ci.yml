@@ -204,8 +204,25 @@ jobs:
           Start-Process -FilePath .\opencv.exe -ArgumentList "-o`"$env:RUNNER_TEMP`" -y" -Wait
           $cv = "$env:RUNNER_TEMP\opencv\build"
           if (-not (Test-Path "$cv\OpenCVConfig.cmake")) { throw "OpenCV did not extract to $cv" }
+
+          # Printed, not assumed. Which vcNN directory the Windows pack carries
+          # changes between OpenCV releases, and naming one it does not ship
+          # fails identically to naming none -- "no binaries compatible with
+          # your configuration", an hour into the job. The root CMakeLists
+          # probes for it; this is here so that when the probe finds nothing,
+          # the log says what was actually on disk instead of leaving the next
+          # person to guess again.
+          Write-Host "OpenCV pack carries:"
+          Get-ChildItem "$cv\x64" -Directory | ForEach-Object { Write-Host "  x64\$($_.Name)" }
+
+          $rt = Get-ChildItem "$cv\x64" -Directory |
+                Where-Object { Test-Path "$($_.FullName)\bin" } |
+                Sort-Object Name -Descending | Select-Object -First 1
+          if (-not $rt) { throw "no x64\vcNN\bin directory in the OpenCV pack at $cv" }
+          Write-Host "using $($rt.Name)"
+
           "OpenCV_DIR=$cv" >> $env:GITHUB_ENV
-          "$cv\x64\vc16\bin" >> $env:GITHUB_PATH
+          "$($rt.FullName)\bin" >> $env:GITHUB_PATH
 
       - name: Install sqlite3
         run: vcpkg install sqlite3:x64-windows

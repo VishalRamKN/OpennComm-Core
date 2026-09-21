@@ -45,24 +45,48 @@ endif()
 # of. This is what broke the first Windows build, on a runner whose image had
 # moved to VS 18.
 #
-# Setting both variables takes the "custom overridden values" branch at the top
-# of OpenCVConfig.cmake and skips the mapping. vc17 is the right answer rather
-# than a workaround: MSVC has kept binary compatibility since v140, and picking
-# the previous compatible runtime is exactly what OpenCV's own fallbacks do for
-# every toolset bump before this one. The job that builds this also starts the
-# application, so a broken ABI would be caught rather than assumed away.
+# Setting both OpenCV_ARCH and OpenCV_RUNTIME takes the "custom overridden
+# values" branch at the top of OpenCVConfig.cmake and skips the mapping.
+#
+# Which vcNN to name is NOT a guess -- the pack is probed for the newest one it
+# actually carries. Naming a version it does not ship fails in exactly the same
+# way as naming none, which is how the first attempt at this went: vc17 was
+# set, was reported, and the pack only had vc16. Picking a runtime older than
+# the compiler is safe and is what OpenCV's own fallbacks already do for vc15
+# and vc16; MSVC has kept binary compatibility since v140. The job that builds
+# this also launches the executable, so an ABI that did not hold would fail
+# visibly rather than be assumed away.
 #
 # Set here rather than beside find_package, because src/ and spike/ both look
 # for OpenCV and a variable set in one is not visible in the other. Only when
 # nothing has been chosen already, so -DOpenCV_RUNTIME still wins; and only for
 # a toolset newer than OpenCV knows, so an older Visual Studio keeps using its
-# own vc15 or vc16 binaries. x64 because that is the only Windows architecture
-# this ships -- MediaPipe and Piper arrive as x86_64 binaries.
+# own binaries. x64 because that is the only Windows architecture this ships --
+# MediaPipe and Piper arrive as x86_64 binaries.
 if(WIN32 AND MSVC AND MSVC_VERSION GREATER 1949
    AND NOT DEFINED OpenCV_RUNTIME AND NOT DEFINED OpenCV_ARCH)
-  set(OpenCV_RUNTIME vc17)
-  set(OpenCV_ARCH x64)
-  message(STATUS "OpenCV: MSVC ${MSVC_VERSION} is newer than this OpenCV knows; using vc17 binaries")
+  set(_oc_cv_root "${OpenCV_DIR}")
+  if(NOT _oc_cv_root)
+    set(_oc_cv_root "$ENV{OpenCV_DIR}")
+  endif()
+  foreach(_oc_rt vc17 vc16 vc15 vc14)
+    if(EXISTS "${_oc_cv_root}/x64/${_oc_rt}/lib")
+      set(OpenCV_ARCH x64)
+      set(OpenCV_RUNTIME ${_oc_rt})
+      message(STATUS
+        "OpenCV: MSVC ${MSVC_VERSION} is newer than this OpenCV knows; "
+        "using the ${_oc_rt} binaries it ships")
+      break()
+    endif()
+  endforeach()
+  if(NOT DEFINED OpenCV_RUNTIME)
+    # Left alone deliberately. This is not a Windows pack, or not one with the
+    # layout above -- a vcpkg or source build of OpenCV ignores these variables
+    # entirely -- so find_package should be allowed to do its normal job and
+    # report its own error rather than one invented here.
+    message(STATUS "OpenCV: no vcNN binaries under '${_oc_cv_root}/x64'; leaving detection to find_package")
+  endif()
+  unset(_oc_cv_root)
 endif()
 
 # Windows has no FHS: the application is one directory with the executable at
