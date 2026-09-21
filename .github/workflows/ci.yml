@@ -287,3 +287,26 @@ jobs:
                              -RedirectStandardOutput $out -RedirectStandardError $err
           Get-Content $out, $err -ErrorAction SilentlyContinue | ForEach-Object { Write-Host $_ }
           if ($p.ExitCode -ne 0) { throw "openncomm.exe --version exited $($p.ExitCode)" }
+
+      # The portable build, as something that can be downloaded.
+      #
+      # This is not what ships. scripts/build-windows.ps1 on a real machine
+      # makes the release artifacts, installer included. This exists so a
+      # runnable copy can reach a test machine without installing Visual
+      # Studio, Qt and OpenCV there first -- which, when the thing being tested
+      # is a webcam and a microphone, is the entire job.
+      #
+      # Uploaded only when asked for by hand. Pushing 1.5 GB on every build of
+      # main would be slow and pointless; the person who wants it knows they
+      # want it.
+      - name: Upload the portable build
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpennComm-windows-x64-portable
+          path: ${{ runner.temp }}/staged
+          retention-days: 14
+          # Stored, not deflated. The bulk of this is already-quantised model
+          # weights, which do not compress -- spending the minutes only makes
+          # the download arrive later.
+          compression-level: 0
