@@ -122,21 +122,35 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: ilammy/msvc-dev-cmd@v1
-        with:
-          arch: x64
-
       # The same standalone core/ build the Linux job does, through a compiler
       # that disagrees with GCC about almost every warning flag and has no
       # libm to link against. It is fast, it needs no models and no Qt, and it
       # is what catches a change to core/ that only compiles on Linux -- which
       # is the failure mode that would otherwise reach a Windows user as a
       # release that could not be built at all.
-      - name: Configure, build and test core standalone
-        run: |
-          cmake -S core -B build-core -G Ninja -DCMAKE_BUILD_TYPE=Release
-          cmake --build build-core
-          ctest --test-dir build-core --output-on-failure
+      #
+      # Three steps rather than one `run:` block with three lines. On Windows a
+      # `run:` block is PowerShell, and PowerShell does not stop when a native
+      # command fails -- only the last command's exit code reaches the runner.
+      # Written as one block, a configure error is invisible and the job
+      # reports a confusing test failure instead of the thing that broke.
+      #
+      # No generator is named. The default on this runner is Visual Studio,
+      # which is multi-config: that is why --config and -C appear below, and
+      # why nothing here needs Ninja to be installed. core/ is nine C files;
+      # which generator builds them is not what this job is testing.
+      - name: Configure core standalone
+        run: cmake -S core -B build-core
+
+      - name: Build core standalone
+        run: cmake --build build-core --config Release
+
+      # -C Release is not optional with a multi-config generator. Without it
+      # ctest has no configuration to substitute into the test paths, looks for
+      # the executables in a directory that was never built, and reports all
+      # seven suites as "Not Run" -- which reads like a test failure and is not.
+      - name: Test core standalone
+        run: ctest --test-dir build-core -C Release --output-on-failure
 
   windows-app:
     name: windows build and install
@@ -157,6 +171,16 @@ jobs:
         with:
           arch: x64
 
+      # Installed explicitly rather than assumed. scripts/fetch-deps.ps1 asks
+      # for ninja by name, and llama.cpp and whisper.cpp are built
+      # single-config on purpose so their .dll and .lib land somewhere
+      # predictable -- see cmake/deps.cmake. Visual Studio ships a copy of
+      # Ninja, but whether it reaches PATH depends on the developer-prompt
+      # action, and a dependency that is only sometimes there is worse than one
+      # that is installed.
+      - name: Install Ninja
+        run: choco install ninja -y --no-progress
+
       # Multimedia as well as the defaults: src/audio.cc uses QAudioSource and
       # QAudioSink to reach the microphone and the speaker, which on Linux are
       # ffmpeg and paplay instead. See src/audio.h.
@@ -174,10 +198,14 @@ jobs:
       # would cost more runner time than everything else here put together.
       - name: Install OpenCV
         run: |
-          curl -fL -o opencv.exe https://github.com/opencv/opencv/releases/download/4.11.0/opencv-4.11.0-windows.exe
+          $ErrorActionPreference = 'Stop'
+          curl.exe -fL -o opencv.exe https://github.com/opencv/opencv/releases/download/4.11.0/opencv-4.11.0-windows.exe
+          if ($LASTEXITCODE -ne 0) { throw "downloading OpenCV failed" }
           Start-Process -FilePath .\opencv.exe -ArgumentList "-o`"$env:RUNNER_TEMP`" -y" -Wait
-          echo "OpenCV_DIR=$env:RUNNER_TEMP\opencv\build" >> $env:GITHUB_ENV
-          echo "$env:RUNNER_TEMP\opencv\build\x64\vc16\bin" >> $env:GITHUB_PATH
+          $cv = "$env:RUNNER_TEMP\opencv\build"
+          if (-not (Test-Path "$cv\OpenCVConfig.cmake")) { throw "OpenCV did not extract to $cv" }
+          "OpenCV_DIR=$cv" >> $env:GITHUB_ENV
+          "$cv\x64\vc16\bin" >> $env:GITHUB_PATH
 
       - name: Install sqlite3
         run: vcpkg install sqlite3:x64-windows
@@ -196,12 +224,16 @@ jobs:
       - name: Fetch and build dependencies
         run: powershell -ExecutionPolicy Bypass -File scripts\fetch-deps.ps1
 
-      - name: Build
+      # Separate steps, for the reason given in windows-core above: a PowerShell
+      # `run:` block does not stop at the first failing command, so a configure
+      # error would surface as a compile error further down.
+      - name: Configure
         env:
           CMAKE_PREFIX_PATH: ${{ env.QT_ROOT_DIR }};C:\vcpkg\installed\x64-windows
-        run: |
-          cmake -S . -B build-windows -G Ninja -DCMAKE_BUILD_TYPE=Release
-          cmake --build build-windows --target openncomm
+        run: cmake -S . -B build-windows -G Ninja -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build-windows --target openncomm
 
       # Installed rather than packaged. The install rules and windeployqt are
       # what decide whether the application can start at all on a machine that
