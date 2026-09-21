@@ -127,6 +127,17 @@ target_compile_definitions(openncomm PRIVATE OPENNCOMM_VERSION="${PROJECT_VERSIO
 install(TARGETS openncomm RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 
 if(WIN32)
+  # TARGET_RUNTIME_DLLS below arrived in CMake 3.21, and the project floor is
+  # 3.20 because Linux does not use it. Checked here rather than with a second
+  # cmake_minimum_required() at the top of the tree: WIN32 is not set until
+  # project() has run, so a guard up there is never true and quietly does
+  # nothing -- which is how this was written the first time.
+  if(CMAKE_VERSION VERSION_LESS 3.21)
+    message(FATAL_ERROR
+      "Building for Windows needs CMake 3.21 or newer for TARGET_RUNTIME_DLLS; "
+      "this is ${CMAKE_VERSION}.")
+  endif()
+
   # The vendored runtimes, normalised into one directory by
   # scripts/fetch-deps.ps1. No symlink chains and no SONAMEs on Windows: a DLL
   # is one file with one name.

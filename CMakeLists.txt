@@ -1,12 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 cmake_minimum_required(VERSION 3.20)
-# 3.21 on Windows, for TARGET_RUNTIME_DLLS: it is what collects the Qt, OpenCV
-# and sqlite3 DLLs off the targets actually linked, instead of a hand-written
-# list that forgets the dependency added last week. There is no equivalent to
-# fall back to, so this is a floor rather than a preference.
-if(WIN32)
-  cmake_minimum_required(VERSION 3.21)
-endif()
 # One source of truth for the version, in a file the packaging shell scripts can
 # read as easily as CMake can. They must agree: a .deb and a .rpm built from the
 # same tree that disagree about their version is a support problem nobody can
