@@ -95,7 +95,21 @@ void CameraWorker::start()
 
 void CameraWorker::openCamera()
 {
+#ifdef Q_OS_WIN
+    /* DirectShow rather than Media Foundation, which OpenCV would pick by
+     * default. Two things this code depends on are only honoured by the DSHOW
+     * backend: CAP_PROP_BUFFERSIZE, without which frames queue up and the blink
+     * being classified is a third of a second old, and the MJPG fourcc, without
+     * which most webcams fall back to uncompressed YUY2 and cannot sustain
+     * 30fps at 640x480 over USB 2.0. Both matter for the same reason -- see
+     * kMinUsableFps above. */
+    d->cap.open(0, cv::CAP_DSHOW);
+    /* Media Foundation as a fallback: a handful of cameras expose no DirectShow
+     * filter at all, and a slower capture beats no capture. */
+    if (!d->cap.isOpened()) d->cap.open(0, cv::CAP_MSMF);
+#else
     d->cap.open(0, cv::CAP_V4L2);
+#endif
     if (!d->cap.isOpened()) return;
     d->cap.set(cv::CAP_PROP_FOURCC, cv::VideoWriter::fourcc('M', 'J', 'P', 'G'));
     d->cap.set(cv::CAP_PROP_FRAME_WIDTH, 640);

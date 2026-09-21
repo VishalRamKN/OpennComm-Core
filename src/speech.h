@@ -20,9 +20,11 @@
  *    it. speak() bumps a generation counter and late signals from an older
  *    generation are dropped.
  *
- * With Piper the signal is keyed on the PLAYER exiting, not the synthesiser:
- * synthesis finishes well before the sound does, and releasing input early
- * would let a blink during playback be read as the next answer.
+ * With Piper the signal is keyed on the SOUND STOPPING, not on the synthesiser
+ * exiting: synthesis finishes well before the sound does, and releasing input
+ * early would let a blink during playback be read as the next answer. How the
+ * sound actually reaches the speakers differs per platform and is hidden behind
+ * PcmSink -- see audio.h.
  */
 #ifndef OPENNCOMM_SPEECH_H
 #define OPENNCOMM_SPEECH_H
@@ -31,6 +33,7 @@
 #include <QString>
 #include <QStringList>
 
+class PcmSink;
 class QProcess;
 class QTimer;
 
@@ -72,7 +75,7 @@ private:
     bool speakWithEspeak(const QString &text, quint64 generation);
 
     QProcess *synth_ = nullptr;   /* piper, or espeak-ng */
-    QProcess *player_ = nullptr;  /* paplay, only on the piper path */
+    PcmSink *player_ = nullptr;   /* only on the piper path; see audio.h */
     QTimer *watchdog_ = nullptr;
 
     quint64 generation_ = 0;

@@ -16,6 +16,7 @@
 #include <cstdio>
 #include <vector>
 
+#include "audio.h"
 #include "camera.h"
 #include "generator.h"
 #include "listener.h"
@@ -28,6 +29,33 @@
  * file still compiles if it is ever built outside this project's CMake. */
 #ifndef OPENNCOMM_VERSION
 #define OPENNCOMM_VERSION "0.0.0-unknown"
+#endif
+
+#ifdef Q_OS_WIN
+#include <windows.h>
+
+/* Put --version and --check output where the person who asked for it is
+ * looking.
+ *
+ * openncomm.exe is a GUI-subsystem binary -- it has to be, or every launch
+ * would flash up a console window behind a full-screen application used by
+ * somebody who cannot dismiss it. The cost is that it starts with no standard
+ * output at all, so `openncomm.exe --version` typed into a terminal prints
+ * nothing and returns 0, which reads exactly like a broken install.
+ *
+ * Attaching to the console that started it fixes that without giving the
+ * normal path a console it does not want. Nothing is allocated when there is
+ * no parent console -- a double-click, or a Start Menu launch -- because a
+ * window that appears and vanishes is worse than silence. */
+static void attachParentConsole()
+{
+    if (!AttachConsole(ATTACH_PARENT_PROCESS)) return;
+    FILE *unused = nullptr;
+    freopen_s(&unused, "CONOUT$", "w", stdout);
+    freopen_s(&unused, "CONOUT$", "w", stderr);
+}
+#else
+static void attachParentConsole() {}
 #endif
 
 /* The model lives beside the binary in an installed build and under the source
@@ -48,9 +76,10 @@ static QString findModel()
  * the face model -- and for adding a model to an installed system without
  * root.
  *
- * curl does the work rather than Qt Network: it is present everywhere, it
- * resumes a partial download, and it already shows a progress bar that does
- * not need reinventing.
+ * curl does the work rather than Qt Network: it resumes a partial download,
+ * it already shows a progress bar that does not need reinventing, and it is
+ * present on every system this runs on -- including Windows, which has shipped
+ * curl.exe since Windows 10 1803.
  *
  * Nothing here is required to use the application. Without any of it the
  * patient still has morse spelling, the built-in phrasebook and espeak-ng. */
@@ -102,6 +131,15 @@ static int runFetchModels()
          * suggests otherwise. */
         printf("\nEverything is already installed. Run --check to verify.\n");
         return 0;
+    }
+
+    /* Checked once, before anything is created, rather than discovered six
+     * times over as a failed download. A machine old enough to have no curl is
+     * a real thing to run into, and "FAILED speech recognition" would send the
+     * person looking at their network. */
+    if (QStandardPaths::findExecutable(QStringLiteral("curl")).isEmpty()) {
+        fprintf(stderr, "curl was not found, and is needed to download models.\n");
+        return 1;
     }
 
     const QString dir = paths::writableModelsDir();
@@ -175,9 +213,16 @@ static int runCheck()
                      : QStringLiteral("%1 — no audio was produced").arg(speech.engineName()));
     }
 
-    const bool ffmpeg = !QStandardPaths::findExecutable(QStringLiteral("ffmpeg")).isEmpty();
-    report("microphone", ffmpeg, ffmpeg ? QStringLiteral("ffmpeg")
-                                        : QStringLiteral("ffmpeg not installed"));
+    {
+        /* Asked of the capture backend rather than probed for here. What
+         * recording needs differs per platform -- an ffmpeg binary on Linux, a
+         * sound device on Windows -- and a self-check that reports the wrong
+         * missing thing sends the operator looking for a program that was
+         * never going to be there. See src/audio.h. */
+        const QString why = MicSource::unavailableReason();
+        report("microphone", why.isEmpty(),
+               why.isEmpty() ? MicSource::backendName() : why);
+    }
 
     {
         QThread thread;
@@ -266,7 +311,9 @@ int main(int argc, char **argv)
          * needs to be able to say which build did it, and they may be reading
          * it out over the phone from a ward with no display attached. */
         if (arg == QLatin1StringView("--version") || arg == QLatin1StringView("-v")) {
+            attachParentConsole();
             std::printf("OpennComm %s\n", OPENNCOMM_VERSION);
+            std::fflush(stdout);
             return 0;
         }
         if (arg == QLatin1StringView("--check") || arg == QLatin1StringView("--fetch-models"))
@@ -274,6 +321,7 @@ int main(int argc, char **argv)
     }
 
     if (headless) {
+        attachParentConsole();
         QCoreApplication app(argc, argv);
         app.setApplicationName(QStringLiteral("OpennComm"));
         app.setOrganizationName(QStringLiteral("OpennComm"));
@@ -294,7 +342,13 @@ int main(int argc, char **argv)
     const QString model = findModel();
     if (model.isEmpty()) {
         QMessageBox::critical(nullptr, QStringLiteral("OpennComm"),
+#ifdef Q_OS_WIN
+            QStringLiteral("The face model is missing.\n\n"
+                           "Reinstall OpennComm, or run scripts\\fetch-deps.ps1 "
+                           "if you are running from a source tree."));
+#else
             QStringLiteral("The face model is missing.\n\nRun scripts/fetch-deps.sh first."));
+#endif
         return 1;
     }
 

@@ -8,7 +8,75 @@ Anything that changes what a patient's input is understood to mean is called
 out explicitly, whatever its size. A one-line threshold change can alter which
 answer gets spoken; a thousand-line packaging change cannot.
 
-## [0.2.0] — 2026-09-20
+## [0.2.0] — 2026-09-21
+
+### OpennComm runs on Windows
+
+Windows 10 (1809 or newer) and Windows 11, on x86_64. Two downloads from the
+releases page: an `.exe` installer that adds a Start Menu entry, and a portable
+`.zip` that unpacks anywhere — including a USB stick — and needs no
+administrator. That second one is not a convenience: a ward or office computer
+where nobody has an administrator password is a normal place for this to be
+needed, and it was previously a place it could not be used at all.
+
+Both carry every model and both voices, for the same reason the `.deb` and the
+`.rpm` do. Both are about 1.4 GB.
+
+What this cost, and what it did not:
+
+- **Nothing in `core/` changed.** Every rule that decides what a patient is
+  understood to have said — blink timing, option scanning, morse, gaze
+  mapping — is the same code on both platforms, and the same tests run against
+  it. A port that forked that logic per operating system would mean a patient
+  tuned on one and moved to the other, which is not a thing anyone should have
+  to think about.
+- **Sound is the one real difference,** and it is now behind two classes in
+  the new `src/audio.h`. Linux still shells out to `ffmpeg` and `paplay`,
+  unchanged and still the tested path, because those programs already know
+  whether the machine is running PulseAudio or PipeWire. Windows has neither
+  program and one audio API that is always present, so it uses Qt Multimedia
+  directly and starts no subprocess at all. `listener.cc` and `speech.cc` —
+  which hold the judgements about when a question has ended and when an answer
+  has finished being spoken — contain no `#ifdef` and were not rewritten.
+- Windows capture is coalesced into 64 ms chunks before the end-of-speech
+  detection sees it. Qt hands over a few milliseconds at a time, and the RMS of
+  five milliseconds of audio is noise about noise — the thresholds in
+  `listener.cc` were measured against real recordings and now mean the same
+  thing on both platforms instead of needing a second set of numbers.
+- The camera opens through DirectShow rather than Media Foundation. Two things
+  this depends on are only honoured by DirectShow: the one-frame buffer, without
+  which the blink being classified is a third of a second old, and the MJPG
+  format, without which most webcams cannot sustain 30fps over USB 2.0.
+- `openncomm.exe --version` and `--check` print to the console they were
+  started from. The application has to be a GUI-subsystem binary or every
+  launch would flash a console behind a full-screen program the patient cannot
+  dismiss; the cost is that its output goes nowhere unless it asks for the
+  parent's console, which it now does for those two commands only.
+- `--check` asks the capture backend what is missing instead of looking for
+  `ffmpeg` by name, so on Windows it no longer reports a program that was never
+  going to be there.
+
+Getting there:
+
+- `scripts/fetch-deps.ps1` is the counterpart of `fetch-deps.sh`, pinned and
+  checksummed against the same artifacts — the same face model, the same
+  weights, the same voices. If a checksum changes it has to change in both, or
+  the two platforms ship different weights under one version number.
+- The MediaPipe wheel carries `libmediapipe.dll` and no import library, because
+  Python loads it and never links against it. One is generated from the DLL's
+  own export table, so it cannot describe a different version of the library
+  than the one beside it.
+- `cmake/deps.cmake` declares the four vendored runtimes once, for every
+  platform, instead of `src/` and `spike/` each having their own copy — which
+  is how a path gets fixed in one and left wrong in the other.
+- CI now builds `core/` under MSVC on every push, which catches a change that
+  only compiles with GCC. A second job builds, installs and starts the whole
+  application on Windows, on `main` and on release tags.
+
+Not done, and worth knowing: the builds are not code-signed, so SmartScreen
+warns that the publisher is unknown. A certificate costs money this project
+does not have. The checksums published beside each release are the way to
+verify a download.
 
 ### The packages now carry every model and both voices
 

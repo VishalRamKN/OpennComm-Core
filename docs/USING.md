@@ -2,24 +2,30 @@
 # Using OpennComm
 
 How the application behaves once it is running, and why it behaves that way.
-For installing and building it, see the [README](../README.md) — either install
-the `.deb` or `.rpm` and run `openncomm`, or run `./run.sh` from a source tree.
-Everything on this page is the same either way.
+For installing and building it, see the [README](../README.md) — install the
+`.deb` or `.rpm` and run `openncomm`, install the Windows package and start
+OpennComm from the Start Menu, or run `./run.sh` from a source tree.
+
+**Everything on this page is the same on Linux and on Windows.** The input —
+blink timing, the scanning order, morse, where the nose has to point — is the
+same code on both, deliberately, so that a patient tuned on one machine is not
+being read differently on another.
 
 ## The window
 
 It opens full screen, because the patient reads the four answers from a bed and
 every unused pixel is one the answers could have been printed in. **F11**
 toggles, **Escape** returns to a window, and `./run.sh --windowed` starts in
-one — `openncomm --windowed` if you installed a package rather than running
-from a source tree.
+one — `openncomm --windowed` on an installed Linux system, `openncomm.exe
+--windowed` on Windows.
 
 ## Who it is speaking for
 
 On the first run it asks who it is speaking for — a name, and optionally an
 age, a condition and anything that comes up daily. Every field is optional and
-all of it stays in `~/.config/OpennComm/`; it is only ever read by the model
-running on this machine. Reopen it any time from **Settings**.
+all of it stays on this machine — `~/.config/OpennComm/` on Linux, the registry
+under `HKEY_CURRENT_USER\Software\OpennComm\OpennComm` on Windows. It is only
+ever read by the model running here. Reopen it any time from **Settings**.
 
 Those details are worth filling in. Told that a patient is ventilated and has
 constant right-shoulder pain, the model offered *"My right shoulder hurts"* and
@@ -89,7 +95,8 @@ asking her to spend four more words on it. It can be saved as a text file for
 a handover note, and any of it can be deleted, one answer or all of it.
 
 That history is the most sensitive thing the program holds: it is the person's
-own words. It lives in `~/.local/share/openncomm/history.db`, it is never sent
+own words. It lives in `~/.local/share/openncomm/history.db` on Linux and in
+`%LOCALAPPDATA%\openncomm\history.db` on Windows, it is never sent
 anywhere, and **Delete everything** rewrites the file rather than just dropping
 the rows, so the words are actually gone.
 

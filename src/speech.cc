@@ -14,6 +14,7 @@
 #include <QProcessEnvironment>
 #include <QStandardPaths>
 
+#include "audio.h"
 #include "paths.h"
 #include <QTimer>
 
@@ -31,18 +32,6 @@ int watchdogMsFor(const QString &text)
     return qMin(20000, 5000 + static_cast<int>(text.length()) * 180);
 }
 
-/* aplay is not usable here: it routes through an ALSA plugin that is not
- * installed on a stock PipeWire desktop and fails with "No such device".
- * paplay talks to the sound server directly and honours the raw format flags. */
-QString findPlayer()
-{
-    for (const char *name : { "paplay", "pw-play" }) {
-        const QString path = QStandardPaths::findExecutable(QString::fromLatin1(name));
-        if (!path.isEmpty()) return path;
-    }
-    return QString();
-}
-
 } // namespace
 
 Speech::Speech(QObject *parent) : QObject(parent)
@@ -53,7 +42,7 @@ Speech::Speech(QObject *parent) : QObject(parent)
 
     if (!piper_binary_.isEmpty()) {
         piper_lib_dir_ = QFileInfo(piper_binary_).absolutePath();
-        if (findPlayer().isEmpty()) piper_binary_.clear(); /* nothing can play it */
+        if (!PcmSink::available()) piper_binary_.clear(); /* nothing can play it */
     }
 
     /* Whatever was chosen last time, else the first voice installed. Falling
@@ -156,49 +145,55 @@ void Speech::settle(quint64 generation)
 
 void Speech::teardown()
 {
-    for (QProcess **p : { &synth_, &player_ }) {
-        if (!*p) continue;
-        (*p)->disconnect(this);
-        (*p)->kill();
-        (*p)->deleteLater();
-        *p = nullptr;
+    /* The player goes first. On Linux the synthesiser's stdout is wired
+     * straight into it, and killing the far end of that pipe first leaves the
+     * synthesiser writing into a closed descriptor. */
+    if (player_) {
+        player_->disconnect(this);
+        player_->stop();
+        player_->deleteLater();
+        player_ = nullptr;
+    }
+    if (synth_) {
+        synth_->disconnect(this);
+        synth_->kill();
+        synth_->deleteLater();
+        synth_ = nullptr;
     }
 }
 
 bool Speech::speakWithPiper(const QString &text, quint64 generation)
 {
-    const QString player = findPlayer();
-    if (player.isEmpty()) return false;
-
-    player_ = new QProcess(this);
+    player_ = new PcmSink(this);
     synth_ = new QProcess(this);
 
-    /* Piper streams raw PCM on stdout straight into the player, so nothing
-     * touches the disk and the answer starts as soon as it is synthesised. */
-    synth_->setStandardOutputProcess(player_);
-
+#ifndef Q_OS_WIN
+    /* Piper's own onnxruntime and espeak-ng sit beside its binary, and on Linux
+     * the loader will not look there unless it is told to. On Windows it always
+     * searches the directory the .exe was loaded from, so there is nothing to
+     * set and setting it would only be a way to get it wrong. */
     QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
     env.insert(QStringLiteral("LD_LIBRARY_PATH"),
                piper_lib_dir_ + QLatin1Char(':')
                    + env.value(QStringLiteral("LD_LIBRARY_PATH")));
     synth_->setProcessEnvironment(env);
+#endif
+
+    /* Wired up before either process starts: on Linux play() connects the two
+     * standard streams together, which QProcess only allows beforehand. */
+    if (!player_->play(synth_, piper_rate_)) { teardown(); return false; }
 
     /* The sound stopping is what ends the utterance, not the synthesis
      * finishing -- releasing input early would let a blink during playback be
      * read as the patient's next answer. */
-    connect(player_, &QProcess::finished, this, [this, generation] { settle(generation); });
-    connect(player_, &QProcess::errorOccurred, this, [this, generation] { settle(generation); });
-    /* If Piper cannot start at all the player would sit forever on an stdin
-     * that never closes. */
+    connect(player_, &PcmSink::finished, this, [this, generation] { settle(generation); });
+    /* If Piper cannot start at all, nothing will ever be played and the sink
+     * would wait on samples that are not coming. */
     connect(synth_, &QProcess::errorOccurred, this, [this, generation] {
-        if (player_) player_->kill();
+        if (player_) player_->stop();
         settle(generation);
     });
 
-    player_->start(player, { QStringLiteral("--raw"),
-                             QStringLiteral("--rate=%1").arg(piper_rate_),
-                             QStringLiteral("--format=s16le"),
-                             QStringLiteral("--channels=1") });
     synth_->start(piper_binary_, { QStringLiteral("--model"), piper_voice_,
                                    QStringLiteral("--output_raw") });
 

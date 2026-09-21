@@ -19,6 +19,8 @@ no account, no telemetry. English only for now.
 | Five-point gaze calibration, saved between runs | **working** |
 | Model downloads, CI, clean-clone build | **working** |
 | `.deb` and `.rpm` packaging | **working**, built per distribution in a container |
+| Windows 10/11 support | **written and built in CI — not yet run on real hardware** |
+| Windows installer and portable archive | **working**, one `cmake --install` tree feeds both |
 | AppImage packaging | **produces a binary that crashes — see below** |
 | Question and answer history, searchable and deletable | **working** |
 | Builds on a distro other than the developer's | **verified on Ubuntu 24.04** |
@@ -212,6 +214,72 @@ a `libggml*.so` ever reappears under `third_party/whisper.cpp/build`, because
 the symptom of a regression here is not a build error, it is the wrong ABI at
 runtime.
 
+## Findings from the Windows port
+
+Done for 0.2.0. The question going in was how much of the application would
+have to fork per platform; the answer turned out to be two files.
+
+**`core/` did not change at all, and that was the point.** Every rule that
+decides what a patient is understood to have said is pure C with no I/O, so it
+compiled under MSVC and passed its tests unmodified. A port that had needed to
+touch those thresholds would have meant a patient tuned on Linux being read
+differently on Windows, which is not a thing anybody should have to reason
+about at a bedside. CI now builds `core/` under MSVC on every push to keep it
+that way — GCC and MSVC disagree about enough that a Linux-only idiom creeps in
+easily.
+
+**Sound was the only real work.** Linux has three audio APIs that may or may
+not be present, which is why the working approach there is to shell out to
+`ffmpeg` and `paplay` — programs that already know which one is running.
+Windows has one that is always there and neither of those programs. Both are
+now behind `MicSource` and `PcmSink` in `src/audio.h`, so `listener.cc` and
+`speech.cc` — which hold the judgements about when a question has ended and
+when an answer has finished being spoken — contain no `#ifdef` and were not
+rewritten.
+
+Two things fell out of that which were not obvious beforehand:
+
+- **Chunk size is part of the tuning.** The end-of-speech thresholds in
+  `listener.cc` are RMS measurements per chunk, and they were measured against
+  the ~128 ms blocks ffmpeg delivers. Qt on Windows hands over a few
+  milliseconds at a time, and the RMS of five milliseconds of audio is noise
+  about noise — a single consonant swings it far enough to look like the start
+  of speech. Capture is coalesced to 64 ms before the detector sees it, which
+  is what lets one set of numbers mean the same thing on both platforms.
+- **`MicSource::stop()` has to return the tail, not discard it.** The first
+  version of the shim dropped it, and the bug that hides behind that is subtle:
+  the recording stops a fraction of a second after the caregiver does, so the
+  buffer being thrown away is usually the last word of the question. ffmpeg
+  flushes it on SIGTERM and Qt still holds it in the device; both are returned
+  and appended now.
+
+**The camera needed DirectShow, not Media Foundation.** OpenCV picks MSMF by
+default on Windows, and two things this depends on are only honoured by DSHOW:
+`CAP_PROP_BUFFERSIZE`, without which frames queue and the blink being
+classified is a third of a second old, and the MJPG fourcc, without which most
+webcams fall back to uncompressed YUY2 and cannot sustain 30fps at 640x480 over
+USB 2.0. Both feed the same failure — see `kMinUsableFps`.
+
+**MediaPipe ships no import library on Windows.** The wheel has
+`libmediapipe.dll` and nothing to link against, because Python loads it at
+runtime and never links. `fetch-deps.ps1` generates one from the DLL's own
+export table with `dumpbin` and `lib`; the names therefore come out of the
+binary that will actually be loaded, so the import library cannot describe a
+different version than the one beside it. It is also why a Visual Studio
+developer prompt is required and a plain PowerShell window is not.
+
+**Redistributing Qt is a licensing change, not a packaging one.** The `.deb`
+and `.rpm` depend on the distribution's Qt and OpenCV; Windows has no
+distribution to depend on, so the installer carries them and LGPL-3.0 now binds
+a shipped artifact rather than a build. It is met by construction — Qt is
+dynamically linked in separate DLLs beside the executable that anyone can
+replace — which is exactly why Qt must never be statically linked here. See
+`THIRD_PARTY.md`.
+
+**Not done: code signing.** SmartScreen calls the publisher unknown, and a
+certificate costs money this project does not have. Published checksums are the
+substitute, and they are a poor one for the audience this is aimed at.
+
 ## Invariants
 
 `core/` carries the rules that must not be quietly undone; each is stated at the
@@ -335,8 +403,17 @@ already. Tamil is deferred.
 
 ## Next
 
-1. Camera exposure auto-tune (finding 6).
-2. AppImage, rebuilt inside an older-distro container (finding 13). Lower
+1. **Run the Windows build on real hardware.** It is compiled, installed and
+   started by CI on every push to `main`, which proves the DLLs resolve and the
+   tree is complete — and proves nothing at all about a webcam, a microphone or
+   a speaker, because a runner has none of the three. The parts that have never
+   executed are exactly the parts the port had to change: DirectShow capture at
+   30fps, `QAudioSource` resampling 48 kHz down to the 16 kHz whisper needs,
+   and `QAudioSink` playing Piper's output to the end without clipping the last
+   word. Until somebody has blinked at it on a real machine, "works on Windows"
+   means "builds on Windows".
+2. Camera exposure auto-tune (finding 6).
+3. AppImage, rebuilt inside an older-distro container (finding 13). Lower
    priority now that `.deb` and `.rpm` exist: those take the same "build in a
    container of the oldest release you support" discipline and do not have to
    bundle Qt to do it, which is what the AppImage cannot currently survive.
