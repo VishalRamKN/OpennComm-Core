@@ -29,10 +29,14 @@ Until there were packages this section did not need to exist: a source tree
 distributes nothing. The `.deb` and `.rpm` do, so these are the components
 whose terms now apply to a shipped artifact rather than to a build:
 
+Filenames below are the Linux ones. The Windows packages carry the same
+components under Windows names — `libmediapipe.dll`, `llama.dll`,
+`whisper.dll`, `ggml*.dll`, `piper.exe`, `onnxruntime.dll`, `espeak-ng.dll` —
+and the obligations are identical.
+
 | Shipped in the package | License | Obligation |
 |---|---|---|
 | `libmediapipe.so` | Apache-2.0 | attribution, NOTICE |
-| `face_landmarker.task` | Apache-2.0 | attribution |
 | `libllama.so`, `libwhisper.so`, `libggml*.so` | MIT | copyright notice |
 | Piper binary, `libonnxruntime.so` | MIT | copyright notice |
 | `libespeak-ng.so` and its data | **GPL-3.0** | source offer |
@@ -42,10 +46,40 @@ whose terms now apply to a shipped artifact rather than to a build:
 | `voices/en_US-amy-medium.onnx` | **CC-BY-SA-4.0** | **credit, and share-alike on the voice** |
 | `voices/en_US-joe-medium.onnx` | CC0-1.0 | none |
 
-Qt, OpenCV, SQLite and ffmpeg are **not** redistributed — the packages depend
-on the distribution's copies. That is what keeps the LGPL obligation on Qt
-trivial to meet, and it is worth preserving for that reason as well as the
-technical ones.
+On Linux, Qt, OpenCV, SQLite and ffmpeg are **not** redistributed — the `.deb`
+and the `.rpm` depend on the distribution's copies. That is what keeps the LGPL
+obligation on Qt trivial to meet, and it is worth preserving for that reason as
+well as the technical ones.
+
+### What the Windows packages additionally redistribute
+
+Windows has no distribution to depend on. The installer and the portable
+archive therefore carry Qt and OpenCV themselves, and terms that bound only a
+build on Linux bind a shipped artifact here:
+
+| Additionally shipped on Windows | License | Obligation |
+|---|---|---|
+| `Qt6Core.dll`, `Qt6Gui.dll`, `Qt6Widgets.dll`, `Qt6Multimedia.dll` and the Qt plugins | **LGPL-3.0** | licence text, and the user must be able to relink against their own Qt |
+| `opencv_world*.dll` | Apache-2.0 | attribution |
+| `sqlite3.dll` | public domain | none |
+
+**The LGPL condition is met by construction, not by promise.** Qt is
+dynamically linked and its DLLs are separate files sitting beside
+`openncomm.exe`; replacing them with a user's own build of the same Qt version
+requires no cooperation from us and nothing more than copying files over. That
+is what LGPL-3.0 section 4 asks for, and it is why Qt must never be statically
+linked into this application — see the note in `src/CMakeLists.txt`.
+
+The verbatim texts ship in `doc\licenses\` beside the binaries:
+`LGPL-3.0.txt` and `opencv.LICENSE`. LGPL-3.0 is written as a set of additional
+permissions on top of GPL-3.0 and is not readable without it; the GPL-3.0 text
+is already there as `espeak-ng.COPYING`, and `LICENSE` at the top of the
+install directory is the same licence again, for OpennComm itself.
+
+Qt Multimedia is used on Windows only. On Linux the same two jobs — reaching
+the microphone and the speaker — are done by `ffmpeg` and `paplay` as
+subprocesses, which is why the Linux packages have no Qt Multimedia dependency
+to redistribute or to depend on. See `src/audio.h`.
 
 **The model weights are in the package, as of 0.2.0.** They used to be
 downloaded by the user on first run, and this section used to say that their

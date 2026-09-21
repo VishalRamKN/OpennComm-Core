@@ -18,13 +18,19 @@ before deploying it to anyone.
 
 ## Status
 
-Early. Version 0.1.0 — see [CHANGELOG.md](CHANGELOG.md) for what that release
+Early. Version 0.2.0 — see [CHANGELOG.md](CHANGELOG.md) for what that release
 contains and what it does not, and [docs/PLAN.md](docs/PLAN.md) for the longer
 account of what is built, what is not, and why.
 
 ## What you need
 
-Linux on x86_64, a webcam, and:
+A webcam, and either Linux or Windows on x86_64.
+
+**On Windows there is nothing to install but the application** — see
+[Windows](#windows) below. Everything on this page up to that point is about
+Linux, or about building from source.
+
+### Linux
 
 | | |
 |---|---|
@@ -62,6 +68,35 @@ Nothing is sent anywhere; the downloads are one way. If you installed a `.deb`
 or an `.rpm` instead, they are already inside it and there is nothing to
 fetch.
 
+### Windows
+
+Windows 10 (1809 or newer) or Windows 11, on x86_64, and a webcam. Nothing
+else: Qt, OpenCV, the models and the voice all travel inside the download.
+
+Two ways to get it, from the [releases
+page](https://github.com/VishalRamKN/OpennComm-Core/releases):
+
+| | |
+|---|---|
+| `OpennComm-0.2.0-windows-x64.exe` | The installer. Adds a Start Menu entry and an uninstaller. Needs an administrator once, to write to Program Files. |
+| `OpennComm-0.2.0-windows-x64.zip` | The portable copy. Unpack it anywhere — including a USB stick — and run `openncomm.exe`. Needs no administrator and no installation. |
+
+Both are about 1.4 GB, because both carry every model and both voices. That is
+the point: a package that installs and then has no voice is a bad thing to
+hand to somebody who cannot tell you it is broken.
+
+The portable `.zip` is the one to use on a ward or office computer where
+nobody has an administrator password.
+
+Windows Defender SmartScreen will warn that the publisher is unknown, because
+these builds are not code-signed — a certificate costs money this project does
+not have. **More info → Run anyway.** The checksums published beside each
+release are how to verify you have what was built.
+
+Building from source on Windows is in
+[CONTRIBUTING.md](CONTRIBUTING.md#building-on-windows); it is not needed to
+use the application.
+
 ## Running
 
     git clone https://github.com/VishalRamKN/OpennComm-Core.git
@@ -77,6 +112,11 @@ If you installed a `.deb` or `.rpm` instead, there is nothing to clone or
 build: run `openncomm`, or pick OpennComm out of the desktop menu. Every
 command below that spells out `./build/src/openncomm` is just `openncomm` on an
 installed system.
+
+On Windows, start it from the Start Menu, or run `openncomm.exe` from the
+folder you unpacked. The same commands work from a terminal — `openncomm.exe
+--check`, `openncomm.exe --version` — and print to the console they were
+started from.
 
 On the first run it asks who it is speaking for. After that a caregiver types
 or speaks a question, and the patient answers it with their eyes: a short blink
@@ -129,7 +169,8 @@ ability to say something.
 
 ## Packaging
 
-**`.deb` and `.rpm` are the supported packages, and they are self-contained.**
+**`.deb`, `.rpm` and the Windows installer are the supported packages, and all
+of them are self-contained.**
 
     ./scripts/build-packages.sh          # both, each in a container
     ./scripts/build-packages.sh deb
@@ -171,6 +212,26 @@ release you intend to support. `build-packages.sh` defaults to `debian:13` and
 `scripts/build-deb.sh` and `scripts/build-rpm.sh` build a package for the
 machine you are on, without a container, if you would rather do that.
 
+### Windows
+
+From a Visual Studio developer prompt, with Qt and OpenCV findable:
+
+    $env:CMAKE_PREFIX_PATH = "C:\Qt\6.8.1\msvc2022_64;C:\vcpkg\installed\x64-windows"
+    powershell -ExecutionPolicy Bypass -File scripts\build-windows.ps1
+
+That fetches the dependencies, builds, and produces both the `.exe` installer
+and the portable `.zip` in `build-windows\`. Both are made from the same
+`cmake --install` tree, so they cannot disagree about what is in them, and
+`scripts\verify-windows-tree.ps1` checks that tree for every DLL, model and
+licence before either is written.
+
+There is no container step and no per-release rebuild the way there is on
+Linux: a Windows binary does not record the versions it was linked against, so
+one build runs on Windows 10 1809 and everything after it.
+
+NSIS is needed for the installer — `winget install NSIS.NSIS`. Without it
+`cpack` still produces the `.zip`.
+
 ### Installing from source instead
 
     cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
@@ -179,7 +240,8 @@ machine you are on, without a container, if you would rather do that.
 
 This needs `patchelf`, which rewrites the vendored libraries' RUNPATHs — they
 are recorded with the build machine's absolute paths and are wrong everywhere
-else. `./run.sh` does not need it.
+else. `./run.sh` does not need it. Windows has no equivalent of any of this: a
+DLL records no search path, and the loader looks beside the executable.
 
 ### AppImage — still broken
 
@@ -217,12 +279,23 @@ of the package, and nothing at all is mounted in from this tree.
 
 ## Layout
 
-    core/     pure C, no I/O, no dependencies -- the patient-facing logic
-              (blink timing, option scanning, morse, gaze mapping, EAR)
-              plus its tests. Runs without a camera, model or window.
-    src/      Qt6 application shell
-    spike/    throwaway risk-retirement programs
-    docs/     usage guide, plan and design notes
+    core/      pure C, no I/O, no dependencies -- the patient-facing logic
+               (blink timing, option scanning, morse, gaze mapping, EAR)
+               plus its tests. Runs without a camera, model or window.
+    src/       Qt6 application shell
+    spike/     throwaway risk-retirement programs
+    cmake/     the vendored-dependency targets, shared by src/ and spike/,
+               and the install-time fixups each platform needs
+    scripts/   dependency fetching and packaging: *.sh for Linux, *.ps1 for
+               Windows, with the same checksums pinned in both
+    packaging/ desktop entry, AppStream metadata, icons and licence notices
+    docs/      usage guide, plan and design notes
+
+Only two files know which platform they are on: `src/audio.cc`, because sound
+is the one thing Linux and Windows do not do alike, and `src/paths.cc`, because
+Windows has no filesystem hierarchy to be relative to. Everything that decides
+what a patient is understood to have said is in `core/` and is the same code
+everywhere.
 
 ## Licence
 

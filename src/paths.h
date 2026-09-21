@@ -3,10 +3,12 @@
  */
 /* Where the models and the Piper binary live.
  *
- * Three layouts have to work: a development tree, an installed prefix, and an
- * AppImage whose own directory is read-only.
+ * Four layouts have to work: a development tree, an installed Unix prefix, an
+ * AppImage whose own directory is read-only, and a Windows install -- which is
+ * one flat directory rather than a prefix, because Windows has no FHS and
+ * because that is the layout that still works when it is copied to a USB stick.
  *
- * A .deb or .rpm carries every model it needs -- face tracking, speech
+ * A .deb, .rpm or Windows package carries every model it needs -- face tracking, speech
  * recognition, answer generation and both voices -- so an installed system
  * finds all of them beside the binary and never has to reach the network. The
  * XDG data directory is searched all the same, and is still where

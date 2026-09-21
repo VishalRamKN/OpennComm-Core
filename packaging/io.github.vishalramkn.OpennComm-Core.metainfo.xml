@@ -74,7 +74,7 @@
        at all without it. The version must match the VERSION file;
        scripts/stage-install.sh fails the build if the two drift apart. -->
   <releases>
-    <release version="0.2.0" date="2026-09-20">
+    <release version="0.2.0" date="2026-09-21">
       <description>
         <p>
           The packages now carry every model and both voices. Installing one

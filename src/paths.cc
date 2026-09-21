@@ -30,6 +30,15 @@ QStringList candidateModelDirs()
     const QString bin = QCoreApplication::applicationDirPath();
     return {
         qEnvironmentVariable("OPENNCOMM_MODELS"),
+#ifdef Q_OS_WIN
+        /* Windows has no FHS and no prefix to be relative to. Both the
+         * installer and the portable .zip lay the application out as one
+         * directory -- openncomm.exe at the top, models\ and piper\ beside it
+         * -- because that is the layout a person can copy to a USB stick and
+         * still have work, and because Program Files is read-only to the
+         * patient who will be using it. */
+        QDir(bin).filePath(QStringLiteral("models")),
+#endif
         QDir(bin).filePath(QStringLiteral("../share/openncomm/models")), /* installed / AppImage */
         paths::writableModelsDir(),                                      /* fetched, or added by hand */
         QDir(bin).filePath(QStringLiteral("../../models")),              /* build tree */
@@ -86,18 +95,30 @@ QString model(const QString &filename)
 QString piperBinary()
 {
     const QString bin = QCoreApplication::applicationDirPath();
+#ifdef Q_OS_WIN
+    const QString exe = QStringLiteral("piper.exe");
+#else
+    const QString exe = QStringLiteral("piper");
+#endif
     const QStringList candidates = {
         qEnvironmentVariable("OPENNCOMM_PIPER"),
+#ifdef Q_OS_WIN
+        /* Beside the application, like the models. Piper's onnxruntime and
+         * espeak-ng DLLs sit in this same directory and Windows resolves them
+         * from there automatically, which is why -- unlike on Linux -- nothing
+         * has to be told where to look. See speech.cc. */
+        QDir(bin).filePath(QStringLiteral("piper/") + exe),
+#endif
         /* Installed. Piper is a binary with its own shared libraries beside it,
          * so it belongs in libdir, not share/ -- and libdir is spelled
          * differently per distribution (lib64 on Fedora, lib/x86_64-linux-gnu
          * on Debian), which is why it is baked in at build time. Still relative
          * to the executable, so an installed tree stays relocatable. */
-        QDir(bin).filePath(QStringLiteral("../" OPENNCOMM_LIBDIR "/openncomm/piper/piper")),
+        QDir(bin).filePath(QStringLiteral("../" OPENNCOMM_LIBDIR "/openncomm/piper/") + exe),
         /* AppImage, which puts everything under share/ regardless. */
-        QDir(bin).filePath(QStringLiteral("../share/openncomm/piper/piper")),
-        QDir(bin).filePath(QStringLiteral("../../third_party/piper/piper")),
-        QStringLiteral("third_party/piper/piper"),
+        QDir(bin).filePath(QStringLiteral("../share/openncomm/piper/") + exe),
+        QDir(bin).filePath(QStringLiteral("../../third_party/piper/") + exe),
+        QStringLiteral("third_party/piper/") + exe,
     };
     for (const QString &c : candidates)
         if (!c.isEmpty() && QFileInfo(c).isExecutable())

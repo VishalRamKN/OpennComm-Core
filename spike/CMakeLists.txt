@@ -1,18 +1,17 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 find_package(OpenCV REQUIRED COMPONENTS core videoio imgproc)
 
-set(MP_DIR ${CMAKE_SOURCE_DIR}/third_party/mediapipe)
-add_library(mediapipe_c SHARED IMPORTED GLOBAL)
-set_target_properties(mediapipe_c PROPERTIES
-  IMPORTED_LOCATION ${MP_DIR}/lib/libmediapipe.so
-  INTERFACE_INCLUDE_DIRECTORIES ${MP_DIR}/include)
+# mediapipe_c, llama_c and whisper_c are declared once in cmake/deps.cmake, for
+# every platform, and imported GLOBAL so they are visible here too.
 
-if(EXISTS ${MP_DIR}/lib/libmediapipe.so)
+# The raw-capture spike opens /dev/video0 directly and reports the frame rate
+# the landmarker actually sustains. It is a Linux development tool and has no
+# Windows equivalent worth writing: on Windows the same measurement comes from
+# the application's own low-frame-rate warning. See src/camera.cc.
+if(NOT WIN32)
   add_executable(landmark_fps landmark_fps.cc)
   target_link_libraries(landmark_fps PRIVATE oc_core mediapipe_c ${OpenCV_LIBS})
   target_include_directories(landmark_fps PRIVATE ${OpenCV_INCLUDE_DIRS})
-else()
-  message(WARNING "libmediapipe.so missing -- run scripts/fetch-deps.sh")
 endif()
 
 # Widgets as well as Core, although only answer_test below uses Core alone.

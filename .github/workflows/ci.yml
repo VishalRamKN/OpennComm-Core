@@ -1,10 +1,16 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# Deliberately not a full build. Building the application needs Qt 6.4, OpenCV,
-# a compiled llama.cpp and whisper.cpp, and scripts/fetch-deps.sh downloads
-# about 1.3 GB of model weights -- none of which belongs on a runner for every
-# push. What is here instead is everything that can be checked in seconds and
-# that would otherwise only be caught by a person.
+# Most of this is deliberately not a full build. Building the application needs
+# Qt 6.4, OpenCV, a compiled llama.cpp and whisper.cpp, and the fetch scripts
+# download about 1.3 GB of model weights -- none of which belongs on a runner
+# for every push. What runs on every push is everything that can be checked in
+# seconds and that would otherwise only be caught by a person.
+#
+# The one exception is `windows-app`, which does build and install the whole
+# thing. It exists because the Windows port cannot be checked any other way:
+# there is no Windows machine in the loop the rest of the time, and a port that
+# is never compiled is a port that does not work. It is kept off the every-push
+# path by running only on main, on release tags, and on demand.
 name: CI
 
 on:
@@ -53,6 +59,22 @@ jobs:
             bash -n "$f"
           done
 
+      # The PowerShell scripts get the same treatment as the shell ones. A
+      # syntax error in fetch-deps.ps1 would otherwise only surface on a
+      # Windows machine, halfway through a 1.3 GB download.
+      - name: Parse every PowerShell script
+        shell: pwsh
+        run: |
+          $bad = $false
+          foreach ($f in (Get-ChildItem -Recurse -Filter *.ps1)) {
+            Write-Host "== $($f.FullName)"
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+                $f.FullName, [ref]$null, [ref]$errors) | Out-Null
+            if ($errors) { $errors | ForEach-Object { Write-Host "   $_" }; $bad = $true }
+          }
+          if ($bad) { exit 1 }
+
       # Advisory: these scripts do deliberate things shellcheck dislikes, so a
       # finding is a prompt to look rather than a failure. Errors still fail.
       - name: shellcheck
@@ -93,3 +115,113 @@ jobs:
           id=$(basename packaging/*.metainfo.xml .metainfo.xml)
           grep -qx "Icon=$id" "packaging/$id.desktop"
           test -f "packaging/$id.png" && test -f "packaging/$id.svg"
+
+  windows-core:
+    name: core tests (MSVC)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      # The same standalone core/ build the Linux job does, through a compiler
+      # that disagrees with GCC about almost every warning flag and has no
+      # libm to link against. It is fast, it needs no models and no Qt, and it
+      # is what catches a change to core/ that only compiles on Linux -- which
+      # is the failure mode that would otherwise reach a Windows user as a
+      # release that could not be built at all.
+      - name: Configure, build and test core standalone
+        run: |
+          cmake -S core -B build-core -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build build-core
+          ctest --test-dir build-core --output-on-failure
+
+  windows-app:
+    name: windows build and install
+    runs-on: windows-latest
+    # Not on every pull request. It downloads 1.3 GB of weights and compiles
+    # llama.cpp and whisper.cpp from source; the cache makes the repeat runs
+    # quick but the first one is not. On main, on a release tag, and on demand
+    # is where it earns its time.
+    if: >-
+      github.event_name == 'workflow_dispatch'
+      || github.ref == 'refs/heads/main'
+      || startsWith(github.ref, 'refs/tags/v')
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      # Multimedia as well as the defaults: src/audio.cc uses QAudioSource and
+      # QAudioSink to reach the microphone and the speaker, which on Linux are
+      # ffmpeg and paplay instead. See src/audio.h.
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.1'
+          host: windows
+          target: desktop
+          arch: win64_msvc2022_64
+          modules: qtmultimedia
+
+      # The official prebuilt OpenCV, not a vcpkg source build: this needs
+      # core, videoio and imgproc only, and building all of OpenCV from source
+      # would cost more runner time than everything else here put together.
+      - name: Install OpenCV
+        run: |
+          curl -fL -o opencv.exe https://github.com/opencv/opencv/releases/download/4.11.0/opencv-4.11.0-windows.exe
+          Start-Process -FilePath .\opencv.exe -ArgumentList "-o`"$env:RUNNER_TEMP`" -y" -Wait
+          echo "OpenCV_DIR=$env:RUNNER_TEMP\opencv\build" >> $env:GITHUB_ENV
+          echo "$env:RUNNER_TEMP\opencv\build\x64\vc16\bin" >> $env:GITHUB_PATH
+
+      - name: Install sqlite3
+        run: vcpkg install sqlite3:x64-windows
+
+      # The models and the compiled runtimes, keyed on the scripts that pin
+      # them: a checksum or a tag changing in fetch-deps.ps1 is exactly when
+      # this cache must not be reused.
+      - name: Cache models and built dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            models
+            third_party
+          key: win-deps-${{ hashFiles('scripts/fetch-deps.ps1') }}
+
+      - name: Fetch and build dependencies
+        run: powershell -ExecutionPolicy Bypass -File scripts\fetch-deps.ps1
+
+      - name: Build
+        env:
+          CMAKE_PREFIX_PATH: ${{ env.QT_ROOT_DIR }};C:\vcpkg\installed\x64-windows
+        run: |
+          cmake -S . -B build-windows -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build build-windows --target openncomm
+
+      # Installed rather than packaged. The install rules and windeployqt are
+      # what decide whether the application can start at all on a machine that
+      # is not this one; NSIS compressing 1.4 GB afterwards proves nothing
+      # further and takes twenty minutes to do it. The installer itself is
+      # built at release time by scripts/build-windows.ps1.
+      - name: Install into a staging tree
+        env:
+          CMAKE_PREFIX_PATH: ${{ env.QT_ROOT_DIR }};C:\vcpkg\installed\x64-windows
+        run: cmake --install build-windows --prefix "${{ runner.temp }}\staged"
+
+      - name: Verify the staged tree is complete
+        run: powershell -ExecutionPolicy Bypass -File scripts\verify-windows-tree.ps1 -Tree "${{ runner.temp }}\staged"
+
+      # Starting it proves the DLLs resolve -- the failure this whole job
+      # exists to catch is a tree that installs and then cannot load Qt, or
+      # MediaPipe, or the platform plugin. There is no camera and no display on
+      # a runner, so --version is as far as it can go, and that is far enough:
+      # it is past every library load.
+      - name: Start the application
+        run: |
+          & "${{ runner.temp }}\staged\openncomm.exe" --version
+          if ($LASTEXITCODE -ne 0) { throw "openncomm.exe --version exited $LASTEXITCODE" }

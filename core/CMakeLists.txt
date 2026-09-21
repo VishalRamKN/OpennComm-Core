@@ -6,7 +6,15 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   project(openncomm_core LANGUAGES C)
   set(CMAKE_C_STANDARD 11)
   set(CMAKE_C_STANDARD_REQUIRED ON)
-  add_compile_options(-Wall -Wextra -Wshadow)
+  # Mirrors the guard in the top-level CMakeLists.txt. core/ is configured
+  # standalone by CI on both Linux and Windows, so this file cannot assume a
+  # GCC-flavoured compiler either.
+  if(MSVC)
+    add_compile_options(/W4 /permissive- /utf-8)
+    add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
+  else()
+    add_compile_options(-Wall -Wextra -Wshadow)
+  endif()
   enable_testing()
 endif()
 
@@ -25,7 +33,11 @@ add_library(oc_core STATIC
   src/blinkcal.c
 )
 target_include_directories(oc_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_link_libraries(oc_core PUBLIC m)
+# libm is a separate library only on Unix; the MSVC runtime carries the maths
+# functions itself and has no `m` to link against.
+if(NOT WIN32)
+  target_link_libraries(oc_core PUBLIC m)
+endif()
 
 foreach(suite blink morse gaze head answers calibrate blinkcal)
   add_executable(test_${suite} tests/test_${suite}.c)

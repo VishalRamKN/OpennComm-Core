@@ -1,11 +1,19 @@
 build/
+build-windows/
 models/
 *.o
+*.obj
 *.so
 *.a
+*.lib
+*.dll
+*.exp
 .cache/
 compile_commands.json
 third_party/mediapipe/lib/*.so
+# The normalised Windows artifacts, produced by scripts/fetch-deps.ps1: the
+# vendored DLLs and the import libraries generated for them.
+third_party/win/
 third_party/llama.cpp/
 third_party/whisper.cpp/
 third_party/piper/

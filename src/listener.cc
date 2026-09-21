@@ -6,33 +6,18 @@
 #include <QByteArray>
 #include <QElapsedTimer>
 #include <QFileInfo>
-#include <QProcess>
 #include <QTimer>
-#include <QStandardPaths>
 #include <QThread>
 
 #include <cmath>
 #include <vector>
 
+#include "audio.h"
 #include "whisper.h"
 
 namespace {
 
 constexpr int kSampleRate = 16000; /* whisper accepts nothing else */
-
-/* ffmpeg rather than parecord, for a measured reason: parecord ignores
- * --rate and hands back the device's native rate (48kHz here), which whisper
- * would transcribe as gibberish at three times speed. ffmpeg resamples
- * correctly and is present on essentially every desktop Linux. */
-QStringList captureArgs()
-{
-    return { QStringLiteral("-hide_banner"), QStringLiteral("-loglevel"), QStringLiteral("error"),
-             QStringLiteral("-f"), QStringLiteral("pulse"),
-             QStringLiteral("-i"), QStringLiteral("default"),
-             QStringLiteral("-ar"), QString::number(kSampleRate),
-             QStringLiteral("-ac"), QStringLiteral("1"),
-             QStringLiteral("-f"), QStringLiteral("s16le"), QStringLiteral("-") };
-}
 
 /* whisper's own front-ends discard anything under a second, and a clip that
  * short is almost always a mis-press rather than a question. */
@@ -145,7 +130,7 @@ void trimTrailingSilence(QByteArray &pcm, float bar)
 struct Listener::Impl {
     QString model_path;
     whisper_context *ctx = nullptr;
-    QProcess *capture = nullptr;
+    MicSource *capture = nullptr;
     QByteArray pcm;
     bool ready = false;
 
@@ -171,15 +156,19 @@ Listener::Listener(QString model_path, QObject *parent)
 
 Listener::~Listener()
 {
-    if (d->capture) { d->capture->kill(); d->capture->waitForFinished(500); }
+    if (d->capture) (void)d->capture->stop();
     if (d->ctx) whisper_free(d->ctx);
     delete d;
 }
 
 void Listener::load()
 {
-    if (QStandardPaths::findExecutable(QStringLiteral("ffmpeg")).isEmpty()) {
-        emit failed(QStringLiteral("ffmpeg is not installed — type the question instead."));
+    /* What is missing differs per platform -- a program on Linux, a device on
+     * Windows -- so the sentence to show comes from there rather than from
+     * here. See audio.h. */
+    const QString no_capture = MicSource::unavailableReason();
+    if (!no_capture.isEmpty()) {
+        emit failed(no_capture);
         return;
     }
     if (!QFileInfo::exists(d->model_path)) {
@@ -216,9 +205,8 @@ void Listener::startRecording()
     d->last_loud_ms = 0;
     d->speech_began_ms = 0;
 
-    d->capture = new QProcess(this);
-    connect(d->capture, &QProcess::readyReadStandardOutput, this, [this] {
-        const QByteArray chunk = d->capture->readAllStandardOutput();
+    d->capture = new MicSource(kSampleRate, this);
+    connect(d->capture, &MicSource::chunk, this, [this](const QByteArray &chunk) {
         d->pcm.append(chunk);
 
         const float rms = chunkRms(chunk.constData(), chunk.size());
@@ -276,7 +264,12 @@ void Listener::startRecording()
     }
     d->watch->start();
 
-    d->capture->start(QStringLiteral("ffmpeg"), captureArgs());
+    if (!d->capture->start()) {
+        d->watch->stop();
+        d->capture->deleteLater();
+        d->capture = nullptr;
+        emit failed(QStringLiteral("The microphone could not be opened — type the question instead."));
+    }
 }
 
 /* Stop capturing and throw the audio away. For the paths that have already
@@ -285,8 +278,7 @@ void Listener::discard()
 {
     if (d->watch) d->watch->stop();
     if (!d->capture) return;
-    d->capture->terminate();
-    if (!d->capture->waitForFinished(1000)) d->capture->kill();
+    (void)d->capture->stop(); /* thrown away with the rest of the recording */
     d->capture->deleteLater();
     d->capture = nullptr;
     d->pcm.clear();
@@ -299,11 +291,10 @@ void Listener::stopAndTranscribe()
     if (d->watch) d->watch->stop();
     if (!d->capture) { emit failed(QStringLiteral("Nothing was recorded.")); return; }
 
-    /* terminate, not kill: ffmpeg flushes its remaining buffer on SIGTERM, and
-     * the tail of that buffer is usually the end of the question. */
-    d->capture->terminate();
-    if (!d->capture->waitForFinished(1500)) d->capture->kill();
-    d->pcm.append(d->capture->readAllStandardOutput());
+    /* The remainder matters: it is the last word of the question as often as
+     * not, because the recording stops a fraction of a second after the
+     * caregiver does. See MicSource::stop() in audio.h. */
+    d->pcm.append(d->capture->stop());
     d->capture->deleteLater();
     d->capture = nullptr;
     emit listeningEnded();

@@ -71,6 +71,52 @@ change to `core/` needs hardware to test, the change is in the wrong place.
 The test suites carry the rules above. A patch that turns one red has not found
 a flaky test.
 
+### Building on Windows
+
+Needed once: [Visual Studio 2022 with the C++
+workload](https://visualstudio.microsoft.com/downloads/) (the Build Tools are
+enough), [CMake](https://cmake.org/download/), Ninja, Git,
+[Qt 6.4+ with the Qt Multimedia module](https://www.qt.io/download-qt-installer),
+and OpenCV 4 and SQLite 3. The quickest route to the last two is the official
+[prebuilt OpenCV](https://opencv.org/releases/) and `vcpkg install
+sqlite3:x64-windows`.
+
+Then, **from the "x64 Native Tools Command Prompt for VS 2022"** — the fetch
+script needs `cl`, `lib` and `dumpbin`, which only exist in that shell:
+
+    $env:CMAKE_PREFIX_PATH = "C:\Qt\6.8.1\msvc2022_64;C:\vcpkg\installed\x64-windows"
+    powershell -ExecutionPolicy Bypass -File run.ps1
+
+That fetches the dependencies, builds, and opens the window, the same way
+`./run.sh` does on Linux. `scripts\build-windows.ps1` produces the installer
+and the portable archive.
+
+Four things differ from the Linux build, and all four are in the code rather
+than in your head:
+
+- **Qt Multimedia is a Windows-only dependency.** `src/audio.cc` uses
+  `QAudioSource` and `QAudioSink` there; on Linux the same two jobs are done by
+  `ffmpeg` and `paplay`, which are already installed and already know which
+  sound server is running. Asking for Multimedia on Linux too would put a
+  dependency into every distribution package to serve code that platform never
+  compiles.
+- **MediaPipe ships no import library.** The wheel has `libmediapipe.dll` and
+  nothing to link against, because Python loads it at runtime.
+  `fetch-deps.ps1` generates one from the DLL's own export table with `dumpbin`
+  and `lib`. That is why a developer prompt is required and a plain PowerShell
+  window is not.
+- **The install is one flat directory,** not a prefix: `openncomm.exe` with
+  `models\`, `piper\` and the DLLs beside it. `src/paths.cc` looks for that
+  layout as well as the Unix one, and it is what lets the portable `.zip` run
+  from a USB stick.
+- **No `patchelf` and no RPATH.** A DLL records no search path; Windows looks
+  in the executable's own directory. `cmake/patch-rpath.cmake` is not run.
+
+Before sending a Windows change, run `scripts\verify-windows-tree.ps1` against
+an installed tree. It checks for every DLL, model and licence by name, which is
+what stops a package that installs cleanly and then cannot start — or worse,
+starts and has no voice.
+
 ## If you touch packaging
 
 Packages are built with `./scripts/build-packages.sh`, and checked by
@@ -170,10 +216,28 @@ self-check there, so the dependency resolver supplies Qt, OpenCV and the GL
 stack rather than the build tree. It is the only step that exercises what
 somebody actually downloads.
 
+The Windows artifacts are built once, on a Windows machine, and are not per
+release: a Windows binary records no library versions the way an rpm records
+sonames, so one build serves Windows 10 1809 and everything after it.
+
+    powershell -ExecutionPolicy Bypass -File scripts\build-windows.ps1
+
+That produces `OpennComm-<version>-windows-x64.exe` and
+`...-windows-x64.zip` in `build-windows\`, from one `cmake --install` tree so
+the two cannot disagree, and refuses to finish if
+`scripts\verify-windows-tree.ps1` finds anything missing. Install the `.exe`
+on a clean machine and run `openncomm.exe --check` before attaching either to
+a release — that is the Windows equivalent of `test-package.sh`, and there is
+no container shortcut for it.
+
+Publish the SHA-256 of both Windows artifacts in the release notes. They are
+not code-signed, so SmartScreen will call the publisher unknown, and a checksum
+is the only way somebody can tell what they downloaded is what was built.
+
 Two things belong in the release notes, because neither is visible from the
 download: that this is **not a medical device** (link `DISCLAIMER`), and that
-the package is about 1.4 GB because every model and both voices are inside it,
-with nothing to download after installing.
+every package is about 1.4 GB because every model and both voices are inside
+it, with nothing to download after installing.
 
 Add a `CHANGELOG.md` entry for anything a user would notice. Anything that
 changes what a patient's input is understood to mean goes in regardless of how
