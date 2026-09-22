@@ -113,9 +113,31 @@ function Copy-Artifact($searchRoot, $filename, $dest) {
 Require-Tool git    'Install Git for Windows: https://git-scm.com/download/win'
 Require-Tool cmake  'Install CMake and tick "Add to PATH": https://cmake.org/download/'
 Require-Tool ninja  'Install Ninja: winget install Ninja-build.Ninja'
-Require-Tool cl     'Open the "x64 Native Tools Command Prompt for VS" and run this from there.'
-Require-Tool lib    'Open the "x64 Native Tools Command Prompt for VS" and run this from there.'
-Require-Tool dumpbin 'Open the "x64 Native Tools Command Prompt for VS" and run this from there.'
+# The advice names a way to get there from wherever you are, because the Start
+# Menu entry is called different things depending on whether Visual Studio or
+# just the Build Tools are installed, and looking for one that is not there is
+# a bad first five minutes.
+$OcDevShell = @'
+Open the "x64 Native Tools Command Prompt for VS", or from any PowerShell:
+    $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" `
+            -latest -products * -property installationPath
+    Import-Module "$vs\Common7\Tools\Microsoft.VisualStudio.DevShell.dll"
+    Enter-VsDevShell -VsInstallPath $vs -SkipAutomaticLocation `
+                     -DevCmdArguments '-arch=x64 -host_arch=x64'
+  The -arch=x64 is not optional: the plain "Developer PowerShell" shortcut is
+  32-bit on many installs, and everything vendored here is x86_64.
+'@
+Require-Tool cl      $OcDevShell
+Require-Tool lib     $OcDevShell
+Require-Tool dumpbin $OcDevShell
+
+# x64 or nothing, checked before a single byte is downloaded. A 32-bit shell
+# gets as far as building llama.cpp and whisper.cpp for the wrong architecture,
+# and only then fails -- in CMake, with a message about Qt versions. See the
+# matching guard in the root CMakeLists.txt.
+if ([System.IntPtr]::Size -eq 8 -and $env:VSCMD_ARG_TGT_ARCH -and $env:VSCMD_ARG_TGT_ARCH -ne 'x64') {
+    throw "This developer shell targets $env:VSCMD_ARG_TGT_ARCH, and OpennComm is x86_64 only.`n  $OcDevShell"
+}
 
 # ---------------------------------------------------------------------------
 # MediaPipe

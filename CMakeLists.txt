@@ -32,6 +32,35 @@ else()
   add_compile_options(-Wall -Wextra -Wshadow)
 endif()
 
+# A 32-bit build, caught here rather than 200 lines later by Qt.
+#
+# "Developer PowerShell for VS 2022" defaults to x86 on many installs, and
+# everything this project vendors is x86_64: the MediaPipe DLL, Piper, the Qt
+# build, the OpenCV pack. What happens without this check is not an error about
+# architecture -- it is Qt's version file rejecting itself:
+#
+#   Could not find a configuration file for package "Qt6" that is compatible
+#   with requested version "6.4".
+#     .../Qt6Config.cmake, version: 6.8.1 (64bit)
+#       The version found is not compatible with the version requested.
+#
+# which reads as a Qt version problem and is not one. Qt's ConfigVersion file
+# appends that "(64bit)" and sets PACKAGE_VERSION_UNSUITABLE when the pointer
+# sizes disagree, and CMake reports the rejection in the only language it has.
+# Somebody chasing that will go and install a different Qt.
+if(WIN32 AND NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
+  math(EXPR _oc_bits "${CMAKE_SIZEOF_VOID_P} * 8")
+  message(FATAL_ERROR
+    "This is a ${_oc_bits}-bit build, and OpennComm is x86_64 only on Windows "
+    "-- MediaPipe, Piper, Qt and OpenCV all arrive as 64-bit binaries.\n"
+    "You are almost certainly in a 32-bit developer shell. Use the \"x64 "
+    "Native Tools Command Prompt for VS\", or from any PowerShell:\n"
+    "  Enter-VsDevShell -VsInstallPath <path> -DevCmdArguments '-arch=x64 -host_arch=x64'\n"
+    "Then delete build-windows/, third_party/win/, third_party/prefix/ and the "
+    "llama.cpp and whisper.cpp build/ directories before rebuilding: anything "
+    "already compiled is the wrong architecture.")
+endif()
+
 # OpenCV's Windows pack chooses its binary directory by mapping MSVC_VERSION to
 # a vcNN folder, and it only knows the toolsets that existed when it was
 # released. Visual Studio 18 reports 1951, which OpenCV 4.11 matches against
